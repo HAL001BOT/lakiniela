@@ -21,15 +21,87 @@ function recalcPointsForMatch(matchId) {
   }
 }
 
-function normalizeStatus(apiStatus) {
-  if (apiStatus === 'FINISHED') return 'finished';
-  if (apiStatus === 'IN_PLAY' || apiStatus === 'PAUSED') return 'live';
+function normalizeApiFootballStatus(short) {
+  if (['FT', 'AET', 'PEN', 'AWD', 'WO'].includes(short)) return 'finished';
+  if (['1H', 'HT', '2H', 'ET', 'BT', 'P', 'INT', 'LIVE'].includes(short)) return 'live';
   return 'scheduled';
 }
 
-async function fetchLigaMxMatches() {
+async function fetchApiFootballLigaMx() {
+  const key = process.env.API_FOOTBALL_KEY;
+  if (!key) return null;
+
+  const client = axios.create({
+    baseURL: 'https://v3.football.api-sports.io',
+    timeout: 20000,
+    headers: {
+      'x-apisports-key': key,
+    },
+  });
+
+  const leagueId = Number(process.env.API_FOOTBALL_LEAGUE_ID || 262);
+
+  // Resolve current season if not explicitly provided.
+  let season = Number(process.env.API_FOOTBALL_SEASON || 0);
+  if (!season) {
+    const leaguesResp = await client.get('/leagues', { params: { id: leagueId } });
+    const leagueInfo = leaguesResp.data?.response?.[0];
+    const currentSeason = (leagueInfo?.seasons || []).find((s) => s.current) || (leagueInfo?.seasons || []).slice(-1)[0];
+    season = Number(currentSeason?.year);
+    if (!season) throw new Error('Could not resolve Liga MX season from API-Football');
+  }
+
+  const now = new Date();
+  const from = new Date(now);
+  from.setDate(from.getDate() - 7);
+  const to = new Date(now);
+  to.setDate(to.getDate() + 14);
+  const fmt = (d) => d.toISOString().slice(0, 10);
+
+  const fetchFixtures = async (seasonToUse) => {
+    const resp = await client.get('/fixtures', {
+      params: {
+        league: leagueId,
+        season: seasonToUse,
+        from: fmt(from),
+        to: fmt(to),
+        timezone: 'America/Mexico_City',
+      },
+    });
+    return resp.data;
+  };
+
+  let fixturesRespData = await fetchFixtures(season);
+
+  // Free plan fallback: API-Football may limit latest seasons (e.g. only up to 2024).
+  const planError = fixturesRespData?.errors?.plan || '';
+  if (!fixturesRespData?.results && /try from\s+\d{4}\s+to\s+\d{4}/i.test(planError)) {
+    const m = planError.match(/try from\s+(\d{4})\s+to\s+(\d{4})/i);
+    const maxAllowed = m ? Number(m[2]) : null;
+    if (maxAllowed) {
+      season = maxAllowed;
+      fixturesRespData = await fetchFixtures(season);
+    }
+  }
+
+  const fixtures = fixturesRespData?.response || [];
+  return fixtures.map((f) => ({
+    externalId: `af:${f.fixture?.id}`,
+    league: 'Liga MX',
+    season: String(season),
+    matchday: f.league?.round || null,
+    home: f.teams?.home?.name,
+    away: f.teams?.away?.name,
+    kickoffAt: f.fixture?.date,
+    homeScore: Number.isInteger(f.goals?.home) ? f.goals.home : null,
+    awayScore: Number.isInteger(f.goals?.away) ? f.goals.away : null,
+    status: normalizeApiFootballStatus(f.fixture?.status?.short),
+  }));
+}
+
+async function fetchFootballDataLigaMx() {
   const key = process.env.FOOTBALL_DATA_KEY;
-  if (!key) throw new Error('FOOTBALL_DATA_KEY missing');
+  if (!key) return null;
 
   const url = 'https://api.football-data.org/v4/competitions/MX1/matches';
   const now = new Date();
@@ -37,79 +109,102 @@ async function fetchLigaMxMatches() {
   from.setDate(from.getDate() - 7);
   const to = new Date(now);
   to.setDate(to.getDate() + 14);
-
   const fmt = (d) => d.toISOString().slice(0, 10);
 
-  try {
-    const { data } = await axios.get(url, {
-      headers: { 'X-Auth-Token': key },
-      params: { dateFrom: fmt(from), dateTo: fmt(to) },
-      timeout: 20000,
-    });
-    if ((data.matches || []).length) return data.matches;
-  } catch (err) {
-    const msg = err.response?.data?.message || err.message;
-    console.warn('Windowed match fetch failed:', msg);
-  }
-
-  // Fallback: fetch all available competition matches for this API key/plan
   const { data } = await axios.get(url, {
     headers: { 'X-Auth-Token': key },
+    params: { dateFrom: fmt(from), dateTo: fmt(to) },
     timeout: 20000,
   });
 
-  return data.matches || [];
+  return (data.matches || []).map((m) => ({
+    externalId: `fd:${m.id}`,
+    league: 'Liga MX',
+    season: `${m.season?.startDate || ''}..${m.season?.endDate || ''}`,
+    matchday: m.matchday || null,
+    home: m.homeTeam?.shortName || m.homeTeam?.name,
+    away: m.awayTeam?.shortName || m.awayTeam?.name,
+    kickoffAt: m.utcDate,
+    homeScore: Number.isInteger(m.score?.fullTime?.home) ? m.score.fullTime.home : null,
+    awayScore: Number.isInteger(m.score?.fullTime?.away) ? m.score.fullTime.away : null,
+    status: m.status === 'FINISHED' ? 'finished' : (m.status === 'IN_PLAY' || m.status === 'PAUSED' ? 'live' : 'scheduled'),
+  }));
 }
 
-function upsertMatchFromApi(match) {
-  const externalId = String(match.id);
-  const existing = db.prepare('SELECT id FROM matches WHERE external_id = ?').get(externalId);
+function upsertMatch(match) {
+  if (!match.home || !match.away || !match.kickoffAt || !match.externalId) return null;
 
-  const home = match.homeTeam?.shortName || match.homeTeam?.name;
-  const away = match.awayTeam?.shortName || match.awayTeam?.name;
-  const kickoff = match.utcDate;
-  const season = `${match.season?.startDate || ''}..${match.season?.endDate || ''}`;
-  const matchday = match.matchday || null;
-
-  const status = normalizeStatus(match.status);
-  const homeScore = Number.isInteger(match.score?.fullTime?.home) ? match.score.fullTime.home : null;
-  const awayScore = Number.isInteger(match.score?.fullTime?.away) ? match.score.fullTime.away : null;
-
+  const existing = db.prepare('SELECT id FROM matches WHERE external_id = ?').get(match.externalId);
   if (existing) {
     db.prepare(`
       UPDATE matches
-      SET league = 'Liga MX', season = ?, matchday = ?, home_team = ?, away_team = ?,
-          kickoff_at = ?, home_score = ?, away_score = ?, status = ?
+      SET league = ?, season = ?, matchday = ?, home_team = ?, away_team = ?, kickoff_at = ?,
+          home_score = ?, away_score = ?, status = ?
       WHERE id = ?
-    `).run(season, matchday, home, away, kickoff, homeScore, awayScore, status, existing.id);
+    `).run(
+      match.league,
+      match.season,
+      match.matchday,
+      match.home,
+      match.away,
+      match.kickoffAt,
+      match.homeScore,
+      match.awayScore,
+      match.status,
+      existing.id
+    );
 
-    if (status === 'finished' && homeScore !== null && awayScore !== null) recalcPointsForMatch(existing.id);
-    return { created: false, matchId: existing.id };
+    if (match.status === 'finished' && match.homeScore !== null && match.awayScore !== null) recalcPointsForMatch(existing.id);
+    return { created: false, id: existing.id };
   }
 
   const info = db.prepare(`
     INSERT INTO matches (external_id, league, season, matchday, home_team, away_team, kickoff_at, home_score, away_score, status)
-    VALUES (?, 'Liga MX', ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(externalId, season, matchday, home, away, kickoff, homeScore, awayScore, status);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    match.externalId,
+    match.league,
+    match.season,
+    match.matchday,
+    match.home,
+    match.away,
+    match.kickoffAt,
+    match.homeScore,
+    match.awayScore,
+    match.status
+  );
 
-  if (status === 'finished' && homeScore !== null && awayScore !== null) recalcPointsForMatch(info.lastInsertRowid);
-  return { created: true, matchId: info.lastInsertRowid };
+  if (match.status === 'finished' && match.homeScore !== null && match.awayScore !== null) recalcPointsForMatch(info.lastInsertRowid);
+  return { created: true, id: info.lastInsertRowid };
 }
 
 async function syncLigaMxScores() {
-  const matches = await fetchLigaMxMatches();
+  let source = null;
+  let fixtures = null;
+
+  if (process.env.API_FOOTBALL_KEY) {
+    source = 'api-football';
+    fixtures = await fetchApiFootballLigaMx();
+  } else if (process.env.FOOTBALL_DATA_KEY) {
+    source = 'football-data';
+    fixtures = await fetchFootballDataLigaMx();
+  } else {
+    throw new Error('Missing API key. Set API_FOOTBALL_KEY (preferred) or FOOTBALL_DATA_KEY');
+  }
+
   let created = 0;
   let updated = 0;
   let finished = 0;
 
-  for (const match of matches) {
-    const result = upsertMatchFromApi(match);
+  for (const f of fixtures || []) {
+    const result = upsertMatch(f);
+    if (!result) continue;
     if (result.created) created += 1;
     else updated += 1;
-    if (normalizeStatus(match.status) === 'finished') finished += 1;
+    if (f.status === 'finished') finished += 1;
   }
 
-  return { ok: true, total: matches.length, created, updated, finished };
+  return { ok: true, source, total: (fixtures || []).length, created, updated, finished };
 }
 
 module.exports = { resultPoints, recalcPointsForMatch, syncLigaMxScores };
