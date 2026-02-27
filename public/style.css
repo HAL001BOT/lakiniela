@@ -6,15 +6,19 @@
 .brand-logo.big{width:124px;height:124px;display:block;margin:0 auto 12px}
 .grid{display:grid;gap:14px;padding:16px;grid-template-columns:1fr}.grid.two{grid-template-columns:340px 1fr}
 .card{background:var(--card);border:1px solid #283870;border-radius:14px;padding:14px;box-shadow:0 8px 26px rgba(0,0,0,.2)}
-.auth{display:grid;place-items:center;min-height:100vh}.auth-card{width:min(460px,94vw)}
+.auth{display:grid;place-items:center;min-height:100vh}.auth-card{width:min(460px,94vw);background:#eaf1ff;color:#0f1834;border:1px solid #9fb8f0}
 h1,h2,h3{margin:.2rem 0 .7rem}a{color:var(--accent);text-decoration:none}.muted{color:var(--muted)}
+.auth-card a{color:#1d4ed8}
+.auth-card p{color:#223059}
 input,button{padding:10px 12px;border-radius:10px;border:1px solid #31457f;background:#0c1430;color:var(--txt)}
+.auth-card input{background:#ffffff;color:#0f1834;border:1px solid #9fb8f0}
+.auth-card button{background:linear-gradient(180deg,#1f7fff,#1459d8);color:#fff}
 button{background:linear-gradient(180deg,#2ea4ff,#1d77ef);border:none;font-weight:700;cursor:pointer}
 .inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.row{display:grid;gap:8px}
 .pool-item,.prediction,.match-line{display:flex;justify-content:space-between;gap:10px;padding:10px;border:1px solid #27376d;border-radius:10px;background:#0f1734;margin:8px 0}
 .pool-item{flex-direction:column}.badge{background:#18305f;border:1px solid #2f5fab;padding:4px 8px;border-radius:999px;font-size:.8rem}
 .teams{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
-.team-logo{width:20px;height:20px;object-fit:contain;border-radius:50%;background:#fff;padding:1px}
+.team-logo{width:20px;height:20px;object-fit:contain;background:transparent;padding:0;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
 .standings{padding-left:18px}.standings li{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #22305f}
 .error{background:#4a1d27;border:1px solid #a54557;padding:8px;border-radius:8px}
 @media (max-width:900px){
