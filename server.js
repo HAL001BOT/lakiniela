@@ -146,7 +146,7 @@ app.post('/pools/:id/predictions/:matchId', auth, (req, res) => {
   res.json({ ok: true });
 });
 
-// lightweight admin endpoint for manual score entry (until API key is configured)
+// admin endpoint for manual final score entry
 app.post('/admin/matches/:id/final', (req, res) => {
   if (req.headers['x-admin-key'] !== (process.env.ADMIN_KEY || 'dev-admin')) return res.status(401).json({ ok: false });
   const home = Number(req.body.home_score);
@@ -156,12 +156,32 @@ app.post('/admin/matches/:id/final', (req, res) => {
   res.json({ ok: true });
 });
 
+app.post('/admin/sync', async (req, res) => {
+  if (req.headers['x-admin-key'] !== (process.env.ADMIN_KEY || 'dev-admin')) return res.status(401).json({ ok: false });
+  try {
+    const result = await syncLigaMxScores();
+    return res.json(result);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 cron.schedule('*/20 * * * *', async () => {
   try {
-    await syncLigaMxScores();
+    const result = await syncLigaMxScores();
+    console.log('Auto-sync:', result);
   } catch (e) {
     console.error('Score sync failed:', e.message);
   }
 });
+
+(async () => {
+  try {
+    const result = await syncLigaMxScores();
+    console.log('Startup sync:', result);
+  } catch (e) {
+    console.warn('Startup sync skipped:', e.message);
+  }
+})();
 
 app.listen(PORT, () => console.log(`LaKiniela running on http://localhost:${PORT}`));
