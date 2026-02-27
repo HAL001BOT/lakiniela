@@ -43,6 +43,8 @@ CREATE TABLE IF NOT EXISTS matches (
   matchday INTEGER,
   home_team TEXT NOT NULL,
   away_team TEXT NOT NULL,
+  home_logo TEXT,
+  away_logo TEXT,
   kickoff_at TEXT NOT NULL,
   home_score INTEGER,
   away_score INTEGER,
@@ -65,6 +67,9 @@ CREATE TABLE IF NOT EXISTS predictions (
   FOREIGN KEY(match_id) REFERENCES matches(id)
 );
 `);
+
+try { db.exec('ALTER TABLE matches ADD COLUMN home_logo TEXT'); } catch {}
+try { db.exec('ALTER TABLE matches ADD COLUMN away_logo TEXT'); } catch {}
 
 const countMatches = db.prepare('SELECT COUNT(*) c FROM matches').get().c;
 if (!countMatches) {

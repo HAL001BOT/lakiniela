@@ -11,7 +11,7 @@
 <div class='list'>
 <% matches.forEach(m => { const p = predByMatch.get(m.id); %>
 <div class='prediction' data-match='<%= m.id %>'>
-<div><strong><%= m.home_team %> vs <%= m.away_team %></strong><small><%= m.status %> · <%= m.kickoff_at %></small></div>
+<div><strong class='teams'><img class='team-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/> <%= m.home_team %> vs <%= m.away_team %> <img class='team-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/></strong><small><%= m.status %> · <%= m.kickoff_at %></small></div>
 <div class='inline'>
 <input type='number' min='0' class='ph' value='<%= p ? p.pred_home : "" %>' <%= m.status==='finished' ? 'disabled' : '' %> />
 <span>-</span>

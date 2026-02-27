@@ -29,7 +29,7 @@ function upsertMatch(match) {
   if (existing) {
     db.prepare(`
       UPDATE matches
-      SET league = ?, season = ?, matchday = ?, home_team = ?, away_team = ?, kickoff_at = ?,
+      SET league = ?, season = ?, matchday = ?, home_team = ?, away_team = ?, home_logo = ?, away_logo = ?, kickoff_at = ?,
           home_score = ?, away_score = ?, status = ?
       WHERE id = ?
     `).run(
@@ -38,6 +38,8 @@ function upsertMatch(match) {
       match.matchday,
       match.home,
       match.away,
+      match.homeLogo || null,
+      match.awayLogo || null,
       match.kickoffAt,
       match.homeScore,
       match.awayScore,
@@ -50,8 +52,8 @@ function upsertMatch(match) {
   }
 
   const info = db.prepare(`
-    INSERT INTO matches (external_id, league, season, matchday, home_team, away_team, kickoff_at, home_score, away_score, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO matches (external_id, league, season, matchday, home_team, away_team, home_logo, away_logo, kickoff_at, home_score, away_score, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     match.externalId,
     match.league,
@@ -59,6 +61,8 @@ function upsertMatch(match) {
     match.matchday,
     match.home,
     match.away,
+    match.homeLogo || null,
+    match.awayLogo || null,
     match.kickoffAt,
     match.homeScore,
     match.awayScore,
@@ -103,6 +107,8 @@ async function fetchEspnLigaMx() {
       matchday: comp.week?.number || null,
       home: home?.team?.displayName,
       away: away?.team?.displayName,
+      homeLogo: home?.team?.logos?.[0]?.href || null,
+      awayLogo: away?.team?.logos?.[0]?.href || null,
       kickoffAt: ev.date,
       homeScore,
       awayScore,
