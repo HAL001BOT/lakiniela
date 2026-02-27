@@ -21,4 +21,6 @@ button{background:linear-gradient(180deg,#2ea4ff,#1d77ef);border:none;font-weigh
   .grid.two{grid-template-columns:1fr}
   .inline{flex-direction:column;align-items:stretch}
   .inline input,.inline button{width:100%}
+  .auth-card form input,
+  .auth-card form button{display:block;width:100%}
 }
