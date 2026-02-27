@@ -172,7 +172,7 @@ app.get('/pools/:id', auth, (req, res) => {
   const predByMatch = new Map(preds.map((p) => [p.match_id, p]));
   const standings = poolStandings(pool.id);
 
-  res.render('pool', { pool, matches, predByMatch, standings });
+  res.render('pool', { pool, matches, predByMatch, standings, nowMs: Date.now() });
 });
 
 app.post('/pools/:id/predictions/:matchId', auth, (req, res) => {
@@ -188,6 +188,12 @@ app.post('/pools/:id/predictions/:matchId', auth, (req, res) => {
   const member = db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = ?').get(poolId, req.session.user.id);
   const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
   if (!member || !match) return res.status(403).json({ ok: false });
+
+  const kickoffMs = new Date(match.kickoff_at).getTime();
+  const lockMs = kickoffMs - (15 * 60 * 1000);
+  if (!Number.isFinite(kickoffMs) || Date.now() >= lockMs) {
+    return res.status(403).json({ ok: false, error: 'Predictions are locked 15 minutes before kickoff.' });
+  }
 
   db.prepare(`
     INSERT INTO predictions (pool_id, user_id, match_id, pred_home, pred_away)
