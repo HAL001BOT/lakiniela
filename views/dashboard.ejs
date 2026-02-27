@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>Dashboard · LaKiniela</title><link rel='stylesheet' href='/style.css'/></head><body>
+<header class='top'><h1>LaKiniela</h1><form method='post' action='/logout'><button>Logout</button></form></header>
+<main class='grid'>
+<section class='card'><h2>Welcome, <%= user.name %></h2>
+<div class='row'>
+<form method='post' action='/pools/create' class='inline'><input name='name' placeholder='New pool name'/><button>Create pool</button></form>
+<form method='post' action='/pools/join' class='inline'><input name='code' placeholder='Join code (e.g. A1B2C3)'/><button>Join</button></form>
+</div></section>
+<section class='card'><h3>Your Pools</h3>
+<div class='list'>
+<% pools.forEach(p=> { %>
+<a class='pool-item' href='/pools/<%= p.id %>'><strong><%= p.name %></strong><span>Code: <%= p.code %> · <%= p.members %> members</span></a>
+<% }) %>
+<% if (!pools.length) { %><p class='muted'>No pools yet. Create one or join with a code.</p><% } %>
+</div></section>
+<section class='card'><h3>Upcoming Liga MX</h3>
+<% nextMatches.forEach(m=> { %><div class='match-line'><span><%= m.home_team %> vs <%= m.away_team %></span><small><%= m.kickoff_at %></small></div><% }) %>
+</section>
+</main></body></html>

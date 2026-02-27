@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · LaKiniela</title><link rel='stylesheet' href='/style.css'/></head><body>
+<header class='top'><a href='/dashboard'>← Dashboard</a><h1><%= pool.name %></h1><span class='badge'>Code: <%= pool.code %></span></header>
+<main class='grid two'>
+<section class='card'><h3>Standings</h3>
+<ol class='standings'>
+<% standings.forEach(s => { %>
+<li><span><%= s.name %></span><strong><%= s.points %> pts</strong></li>
+<% }) %>
+</ol></section>
+<section class='card'><h3>Predictions</h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>
+<div class='list'>
+<% matches.forEach(m => { const p = predByMatch.get(m.id); %>
+<div class='prediction' data-match='<%= m.id %>'>
+<div><strong><%= m.home_team %> vs <%= m.away_team %></strong><small><%= m.status %> · <%= m.kickoff_at %></small></div>
+<div class='inline'>
+<input type='number' min='0' class='ph' value='<%= p ? p.pred_home : "" %>' <%= m.status==='finished' ? 'disabled' : '' %> />
+<span>-</span>
+<input type='number' min='0' class='pa' value='<%= p ? p.pred_away : "" %>' <%= m.status==='finished' ? 'disabled' : '' %> />
+<button class='save' <%= m.status==='finished' ? 'disabled' : '' %>>Save</button>
+<% if (m.status==='finished') { %><span class='badge'>Final: <%= m.home_score %>-<%= m.away_score %></span><% } %>
+</div>
+</div>
+<% }) %>
+</div></section>
+</main>
+<script>
+document.querySelectorAll('.prediction .save').forEach(btn=>{btn.onclick=async()=>{const row=btn.closest('.prediction');const id=row.dataset.match;const ph=row.querySelector('.ph').value;const pa=row.querySelector('.pa').value;const r=await fetch(`/pools/<%= pool.id %>/predictions/${id}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pred_home:ph,pred_away:pa})});if(r.ok){btn.textContent='Saved';setTimeout(()=>btn.textContent='Save',900);}}})
+</script>
+</body></html>
