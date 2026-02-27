@@ -10,10 +10,7 @@ Modern Liga MX pool app (web MVP).
   - **3 points** = correct match result (win/draw/loss)
   - **5 points** = exact score
 - Pool standings dashboard
-- Automatic fixture/results import + scoring sync every 20 minutes
-  - Uses `API_FOOTBALL_KEY` if present
-  - Falls back to `FOOTBALL_DATA_KEY`
-  - If neither works, falls back to ESPN public scoreboard feed (no key)
+- Automatic fixture/results import + scoring sync every 20 minutes (ESPN public feed)
 
 ## Run
 ```bash
@@ -23,10 +20,9 @@ npm start
 Open: `http://localhost:3090`
 
 ## Env (optional)
-- `FOOTBALL_DATA_KEY` → enables Liga MX auto fixture+score sync via football-data API
 - `ADMIN_KEY` → protects admin endpoints (`/admin/matches/:id/final`, `/admin/sync`)
 - `SESSION_SECRET`
 
 ## Notes
-- If no external API key is present, app still works and you can load final results via admin endpoint.
+- Sync now uses ESPN public scoreboard feed (no API key required).
 - DB file: `data/lakiniela.db`
