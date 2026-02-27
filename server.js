@@ -75,6 +75,34 @@ function getUpcomingUniqueScheduledMatches() {
   return unique;
 }
 
+function shouldRunFrequentSyncNow() {
+  const toMxDate = (iso) => new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(iso));
+
+  const live = db.prepare(`
+    SELECT COUNT(*) c
+    FROM matches
+    WHERE external_id LIKE 'espn:%' AND status = 'live'
+  `).get().c;
+  if (live > 0) return true;
+
+  const upcoming = db.prepare(`
+    SELECT kickoff_at
+    FROM matches
+    WHERE external_id LIKE 'espn:%'
+      AND status = 'scheduled'
+      AND home_score IS NULL
+      AND away_score IS NULL
+  `).all();
+
+  const todayMx = toMxDate(new Date().toISOString());
+  return upcoming.some((m) => toMxDate(m.kickoff_at) === todayMx);
+}
+
 app.get('/', (req, res) => (req.session.user ? res.redirect('/dashboard') : res.redirect('/login')));
 
 app.get('/register', (_req, res) => res.render('register', { error: null }));
@@ -194,10 +222,11 @@ app.post('/admin/sync', async (req, res) => {
   }
 });
 
-cron.schedule('*/20 * * * *', async () => {
+cron.schedule('*/5 * * * *', async () => {
   try {
+    if (!shouldRunFrequentSyncNow()) return;
     const result = await syncLigaMxScores();
-    console.log('Auto-sync:', result);
+    console.log('Auto-sync (5m):', result);
   } catch (e) {
     console.error('Score sync failed:', e.message);
   }
