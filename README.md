@@ -10,7 +10,10 @@ Modern Liga MX pool app (web MVP).
   - **3 points** = correct match result (win/draw/loss)
   - **5 points** = exact score
 - Pool standings dashboard
-- Automatic fixture/results import + scoring sync every 20 minutes (when API key is configured)
+- Automatic fixture/results import + scoring sync every 20 minutes
+  - Uses `API_FOOTBALL_KEY` if present
+  - Falls back to `FOOTBALL_DATA_KEY`
+  - If neither works, falls back to ESPN public scoreboard feed (no key)
 
 ## Run
 ```bash

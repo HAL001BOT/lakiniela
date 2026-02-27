@@ -178,18 +178,63 @@ function upsertMatch(match) {
   return { created: true, id: info.lastInsertRowid };
 }
 
+async function fetchEspnLigaMx() {
+  const now = new Date();
+  const from = new Date(now);
+  from.setDate(from.getDate() - 7);
+  const to = new Date(now);
+  to.setDate(to.getDate() + 14);
+  const fmt = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
+
+  const url = 'https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard';
+  const { data } = await axios.get(url, {
+    params: { dates: `${fmt(from)}-${fmt(to)}` },
+    timeout: 20000,
+  });
+
+  return (data.events || []).map((ev) => {
+    const comp = ev.competitions?.[0] || {};
+    const home = (comp.competitors || []).find((c) => c.homeAway === 'home');
+    const away = (comp.competitors || []).find((c) => c.homeAway === 'away');
+    const completed = !!comp.status?.type?.completed;
+    const state = comp.status?.type?.state;
+    const status = completed ? 'finished' : (state === 'in' ? 'live' : 'scheduled');
+
+    const homeScore = Number.isFinite(Number(home?.score)) ? Number(home.score) : null;
+    const awayScore = Number.isFinite(Number(away?.score)) ? Number(away.score) : null;
+
+    return {
+      externalId: `espn:${ev.id}`,
+      league: 'Liga MX',
+      season: String(ev.season?.year || ''),
+      matchday: comp.week?.number || null,
+      home: home?.team?.displayName,
+      away: away?.team?.displayName,
+      kickoffAt: ev.date,
+      homeScore,
+      awayScore,
+      status,
+    };
+  });
+}
+
 async function syncLigaMxScores() {
   let source = null;
-  let fixtures = null;
+  let fixtures = [];
 
   if (process.env.API_FOOTBALL_KEY) {
     source = 'api-football';
     fixtures = await fetchApiFootballLigaMx();
-  } else if (process.env.FOOTBALL_DATA_KEY) {
+  }
+
+  if ((!fixtures || fixtures.length === 0) && process.env.FOOTBALL_DATA_KEY) {
     source = 'football-data';
     fixtures = await fetchFootballDataLigaMx();
-  } else {
-    throw new Error('Missing API key. Set API_FOOTBALL_KEY (preferred) or FOOTBALL_DATA_KEY');
+  }
+
+  if (!fixtures || fixtures.length === 0) {
+    source = 'espn-public';
+    fixtures = await fetchEspnLigaMx();
   }
 
   let created = 0;
