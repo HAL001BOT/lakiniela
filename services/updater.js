@@ -32,9 +32,29 @@ async function fetchLigaMxMatches() {
   if (!key) throw new Error('FOOTBALL_DATA_KEY missing');
 
   const url = 'https://api.football-data.org/v4/competitions/MX1/matches';
+  const now = new Date();
+  const from = new Date(now);
+  from.setDate(from.getDate() - 7);
+  const to = new Date(now);
+  to.setDate(to.getDate() + 14);
+
+  const fmt = (d) => d.toISOString().slice(0, 10);
+
+  try {
+    const { data } = await axios.get(url, {
+      headers: { 'X-Auth-Token': key },
+      params: { dateFrom: fmt(from), dateTo: fmt(to) },
+      timeout: 20000,
+    });
+    if ((data.matches || []).length) return data.matches;
+  } catch (err) {
+    const msg = err.response?.data?.message || err.message;
+    console.warn('Windowed match fetch failed:', msg);
+  }
+
+  // Fallback: fetch all available competition matches for this API key/plan
   const { data } = await axios.get(url, {
     headers: { 'X-Auth-Token': key },
-    params: { status: 'SCHEDULED,IN_PLAY,PAUSED,FINISHED' },
     timeout: 20000,
   });
 
