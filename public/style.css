@@ -17,4 +17,8 @@ button{background:linear-gradient(180deg,#2ea4ff,#1d77ef);border:none;font-weigh
 .team-logo{width:20px;height:20px;object-fit:contain;border-radius:50%;background:#fff;padding:1px}
 .standings{padding-left:18px}.standings li{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #22305f}
 .error{background:#4a1d27;border:1px solid #a54557;padding:8px;border-radius:8px}
-@media (max-width:900px){.grid.two{grid-template-columns:1fr}}
+@media (max-width:900px){
+  .grid.two{grid-template-columns:1fr}
+  .inline{flex-direction:column;align-items:stretch}
+  .inline input,.inline button{width:100%}
+}
