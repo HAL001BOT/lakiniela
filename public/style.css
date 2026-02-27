@@ -1,30 +1,112 @@
-:root{--bg:#0b1020;--card:#131b33;--txt:#e9efff;--muted:#9fb1d7;--accent:#59d4ff;--ok:#31d39b}
-*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Arial;background:radial-gradient(circle at top,#101a3a,#090d1c);color:var(--txt)}
-.top{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:16px 20px;background:#101832;border-bottom:1px solid #23305f}
-.brand{display:flex;align-items:center;gap:10px}
-.brand-logo{width:48px;height:48px;object-fit:cover;border-radius:50%;border:1px solid #2f5fab}
+:root{
+  --bg:#060b1c;
+  --bg2:#0a1333;
+  --card:#111b45;
+  --card2:#0d163a;
+  --stroke:rgba(106,140,255,.35);
+  --txt:#edf3ff;
+  --muted:#a8b6dd;
+  --accent:#4cc9ff;
+  --violet:#8a3dff;
+  --ok:#2fe2a8;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  font-family:Inter,system-ui,Arial,sans-serif;
+  color:var(--txt);
+  background:
+    radial-gradient(1200px 700px at 15% -10%, #1a2e7a55, transparent 60%),
+    radial-gradient(900px 500px at 95% 0%, #7b2cff3d, transparent 65%),
+    linear-gradient(180deg,var(--bg2),var(--bg));
+}
+a{color:var(--accent);text-decoration:none}
+h1,h2,h3{margin:.2rem 0 .7rem;letter-spacing:.2px}
+
+.top{
+  display:flex;gap:12px;align-items:center;justify-content:space-between;
+  padding:14px 20px;
+  background:linear-gradient(180deg,#101d4aee,#0b1438ee);
+  border-bottom:1px solid #31478f;
+  backdrop-filter:blur(8px);
+}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand h1{font-size:1.3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand-logo{
+  width:48px;height:48px;object-fit:cover;border-radius:50%;
+  border:1px solid #4f6ed0;
+  box-shadow:0 0 0 3px #ffffff08,0 8px 22px #1d4ed866;
+  background:#f6f8ff;
+}
 .brand-logo.big{width:124px;height:124px;display:block;margin:0 auto 12px}
-.grid{display:grid;gap:14px;padding:16px;grid-template-columns:1fr}.grid.two{grid-template-columns:340px 1fr}
-.card{background:var(--card);border:1px solid #283870;border-radius:14px;padding:14px;box-shadow:0 8px 26px rgba(0,0,0,.2)}
-.auth{display:grid;place-items:center;min-height:100vh}.auth-card{width:min(460px,94vw);background:#eaf1ff;color:#0f1834;border:1px solid #9fb8f0}
-h1,h2,h3{margin:.2rem 0 .7rem}a{color:var(--accent);text-decoration:none}.muted{color:var(--muted)}
-.auth-card a{color:#1d4ed8}
-.auth-card p{color:#223059}
-input,button{padding:10px 12px;border-radius:10px;border:1px solid #31457f;background:#0c1430;color:var(--txt)}
-.auth-card input{background:#ffffff;color:#0f1834;border:1px solid #9fb8f0}
-.auth-card button{background:linear-gradient(180deg,#1f7fff,#1459d8);color:#fff}
-button{background:linear-gradient(180deg,#2ea4ff,#1d77ef);border:none;font-weight:700;cursor:pointer}
-.inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.row{display:grid;gap:8px}
-.pool-item,.prediction,.match-line{display:flex;justify-content:space-between;gap:10px;padding:10px;border:1px solid #27376d;border-radius:10px;background:#0f1734;margin:8px 0}
-.pool-item{flex-direction:column}.badge{background:#18305f;border:1px solid #2f5fab;padding:4px 8px;border-radius:999px;font-size:.8rem}
+
+.grid{display:grid;gap:14px;padding:18px;grid-template-columns:1fr;max-width:1200px;margin:0 auto}
+.grid.two{grid-template-columns:360px 1fr}
+
+.card{
+  background:linear-gradient(165deg,var(--card),var(--card2));
+  border:1px solid var(--stroke);
+  border-radius:18px;
+  padding:16px;
+  box-shadow:0 16px 34px rgba(0,0,0,.32), inset 0 1px 0 #ffffff12;
+}
+
+.auth{display:grid;place-items:center;min-height:100vh;padding:16px}
+.auth-card{
+  width:min(460px,95vw);
+  color:var(--txt);
+  background:linear-gradient(165deg,#14235a,#0f1c49);
+  border:1px solid #4665cc;
+}
+.auth-card h1{text-align:center;font-size:2.2rem;margin-bottom:.2rem}
+.auth-card p{text-align:center;color:#c8d5fa;margin-top:0}
+.auth-card a{display:inline-block;margin-top:8px}
+
+input,button{
+  padding:11px 12px;border-radius:12px;border:1px solid #3653a8;
+  background:#0a1437;color:var(--txt);font-size:.98rem;
+}
+input:focus{outline:none;border-color:#58bbff;box-shadow:0 0 0 3px #58bbff2c}
+button{
+  border:none;font-weight:700;cursor:pointer;
+  background:linear-gradient(90deg,var(--accent),var(--violet));
+  color:white;
+  box-shadow:0 8px 20px #4e46e54d;
+}
+button:hover{filter:brightness(1.05)}
+button:disabled{opacity:.55;cursor:not-allowed}
+
+.inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row{display:grid;gap:10px}
+
+.pool-item,.prediction,.match-line{
+  display:flex;justify-content:space-between;gap:10px;padding:10px;
+  border:1px solid #2a438f;border-radius:12px;
+  background:linear-gradient(180deg,#0d1840,#0b1537);
+  margin:8px 0;
+}
+.pool-item{flex-direction:column}
+.badge{
+  background:linear-gradient(90deg,#1f4fd0,#7237f3);
+  border:1px solid #6f8cf0;
+  padding:4px 9px;border-radius:999px;font-size:.78rem;
+}
 .teams{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
-.team-logo{width:20px;height:20px;object-fit:contain;background:transparent;padding:0;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
-.standings{padding-left:18px}.standings li{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #22305f}
-.error{background:#4a1d27;border:1px solid #a54557;padding:8px;border-radius:8px}
+.team-logo{width:20px;height:20px;object-fit:contain;background:transparent;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+.standings{padding-left:18px}
+.standings li{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #274080}
+.muted{color:var(--muted)}
+.error{background:#4d1f39;border:1px solid #d8689f;padding:8px;border-radius:10px}
+
+.auth-card form,
+.auth-card form input,
+.auth-card form button{display:block;width:100%}
+.auth-card form input{margin:.45rem 0}
+.auth-card form button{margin-top:.55rem}
+
 @media (max-width:900px){
   .grid.two{grid-template-columns:1fr}
   .inline{flex-direction:column;align-items:stretch}
   .inline input,.inline button{width:100%}
-  .auth-card form input,
-  .auth-card form button{display:block;width:100%}
 }
