@@ -47,16 +47,32 @@ function poolStandings(poolId) {
   `).all(poolId);
 }
 
-function getCurrentWeekBounds() {
-  const now = new Date();
-  const start = new Date(now);
-  start.setUTCDate(now.getUTCDate() - now.getUTCDay()); // Sunday
-  start.setUTCHours(0, 0, 0, 0);
+function getUpcomingUniqueScheduledMatches() {
+  const scheduled = db.prepare(`
+    SELECT *
+    FROM matches
+    WHERE external_id LIKE 'espn:%'
+      AND status = 'scheduled'
+      AND home_score IS NULL
+      AND away_score IS NULL
+    ORDER BY kickoff_at ASC
+  `).all();
 
-  const end = new Date(start);
-  end.setUTCDate(start.getUTCDate() + 7);
+  const usedTeams = new Set();
+  const unique = [];
 
-  return { start: start.toISOString(), end: end.toISOString() };
+  for (const m of scheduled) {
+    const home = String(m.home_team || '').toLowerCase();
+    const away = String(m.away_team || '').toLowerCase();
+    if (!home || !away) continue;
+    if (usedTeams.has(home) || usedTeams.has(away)) continue;
+
+    unique.push(m);
+    usedTeams.add(home);
+    usedTeams.add(away);
+  }
+
+  return unique;
 }
 
 app.get('/', (req, res) => (req.session.user ? res.redirect('/dashboard') : res.redirect('/login')));
@@ -94,15 +110,7 @@ app.get('/dashboard', auth, (req, res) => {
     ORDER BY p.created_at DESC
   `).all(req.session.user.id);
 
-  const { start, end } = getCurrentWeekBounds();
-  const nextMatches = db.prepare(`
-    SELECT *
-    FROM matches
-    WHERE external_id LIKE 'espn:%'
-      AND kickoff_at >= ? AND kickoff_at < ?
-    ORDER BY kickoff_at ASC
-  `).all(start, end);
-
+  const nextMatches = getUpcomingUniqueScheduledMatches();
   res.render('dashboard', { pools, nextMatches });
 });
 
@@ -132,14 +140,7 @@ app.get('/pools/:id', auth, (req, res) => {
   const isMember = db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = ?').get(pool.id, req.session.user.id);
   if (!isMember) return res.status(403).send('Join this pool first.');
 
-  const { start, end } = getCurrentWeekBounds();
-  const matches = db.prepare(`
-    SELECT *
-    FROM matches
-    WHERE external_id LIKE 'espn:%'
-      AND kickoff_at >= ? AND kickoff_at < ?
-    ORDER BY kickoff_at ASC
-  `).all(start, end);
+  const matches = getUpcomingUniqueScheduledMatches();
   const preds = db.prepare('SELECT * FROM predictions WHERE pool_id = ? AND user_id = ?').all(pool.id, req.session.user.id);
   const predByMatch = new Map(preds.map((p) => [p.match_id, p]));
   const standings = poolStandings(pool.id);

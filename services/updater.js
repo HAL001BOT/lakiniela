@@ -91,8 +91,10 @@ async function fetchEspnLigaMx() {
     const state = comp.status?.type?.state;
     const status = completed ? 'finished' : (state === 'in' ? 'live' : 'scheduled');
 
-    const homeScore = Number.isFinite(Number(home?.score)) ? Number(home.score) : null;
-    const awayScore = Number.isFinite(Number(away?.score)) ? Number(away.score) : null;
+    const parsedHome = Number.isFinite(Number(home?.score)) ? Number(home.score) : null;
+    const parsedAway = Number.isFinite(Number(away?.score)) ? Number(away.score) : null;
+    const homeScore = status === 'finished' ? parsedHome : null;
+    const awayScore = status === 'finished' ? parsedAway : null;
 
     return {
       externalId: `espn:${ev.id}`,
