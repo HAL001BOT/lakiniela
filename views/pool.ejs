@@ -7,7 +7,7 @@
 <li><span><%= s.name %></span><strong><%= s.points %> pts</strong></li>
 <% }) %>
 </ol></section>
-<section class='card'><h3>Predictions <%= currentMatchday ? ('· Matchday ' + currentMatchday) : '' %></h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>
+<section class='card'><h3>Predictions · This Week</h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>
 <div class='list'>
 <% matches.forEach(m => { const p = predByMatch.get(m.id); %>
 <div class='prediction' data-match='<%= m.id %>'>
