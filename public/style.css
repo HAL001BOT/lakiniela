@@ -1,6 +1,9 @@
 :root{--bg:#0b1020;--card:#131b33;--txt:#e9efff;--muted:#9fb1d7;--accent:#59d4ff;--ok:#31d39b}
 *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,Arial;background:radial-gradient(circle at top,#101a3a,#090d1c);color:var(--txt)}
 .top{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:16px 20px;background:#101832;border-bottom:1px solid #23305f}
+.brand{display:flex;align-items:center;gap:10px}
+.brand-logo{width:34px;height:34px;object-fit:cover;border-radius:50%;border:1px solid #2f5fab}
+.brand-logo.big{width:84px;height:84px;display:block;margin:0 auto 10px}
 .grid{display:grid;gap:14px;padding:16px;grid-template-columns:1fr}.grid.two{grid-template-columns:340px 1fr}
 .card{background:var(--card);border:1px solid #283870;border-radius:14px;padding:14px;box-shadow:0 8px 26px rgba(0,0,0,.2)}
 .auth{display:grid;place-items:center;min-height:100vh}.auth-card{width:min(460px,94vw)}
