@@ -47,6 +47,28 @@ function poolStandings(poolId) {
   `).all(poolId);
 }
 
+function getCurrentMatchday() {
+  const next = db.prepare(`
+    SELECT matchday
+    FROM matches
+    WHERE matchday IS NOT NULL AND status IN ('scheduled', 'live')
+    ORDER BY kickoff_at ASC
+    LIMIT 1
+  `).get();
+
+  if (next?.matchday !== null && next?.matchday !== undefined) return Number(next.matchday);
+
+  const last = db.prepare(`
+    SELECT matchday
+    FROM matches
+    WHERE matchday IS NOT NULL
+    ORDER BY kickoff_at DESC
+    LIMIT 1
+  `).get();
+
+  return last?.matchday ?? null;
+}
+
 app.get('/', (req, res) => (req.session.user ? res.redirect('/dashboard') : res.redirect('/login')));
 
 app.get('/register', (_req, res) => res.render('register', { error: null }));
@@ -82,8 +104,12 @@ app.get('/dashboard', auth, (req, res) => {
     ORDER BY p.created_at DESC
   `).all(req.session.user.id);
 
-  const nextMatches = db.prepare("SELECT * FROM matches WHERE status = 'scheduled' ORDER BY kickoff_at ASC LIMIT 6").all();
-  res.render('dashboard', { pools, nextMatches });
+  const currentMatchday = getCurrentMatchday();
+  const nextMatches = currentMatchday === null
+    ? db.prepare("SELECT * FROM matches WHERE status IN ('scheduled','live') ORDER BY kickoff_at ASC LIMIT 10").all()
+    : db.prepare("SELECT * FROM matches WHERE matchday = ? ORDER BY kickoff_at ASC").all(currentMatchday);
+
+  res.render('dashboard', { pools, nextMatches, currentMatchday });
 });
 
 app.post('/pools/create', auth, (req, res) => {
@@ -112,12 +138,15 @@ app.get('/pools/:id', auth, (req, res) => {
   const isMember = db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = ?').get(pool.id, req.session.user.id);
   if (!isMember) return res.status(403).send('Join this pool first.');
 
-  const matches = db.prepare('SELECT * FROM matches ORDER BY kickoff_at ASC').all();
+  const currentMatchday = getCurrentMatchday();
+  const matches = currentMatchday === null
+    ? db.prepare('SELECT * FROM matches ORDER BY kickoff_at ASC LIMIT 20').all()
+    : db.prepare('SELECT * FROM matches WHERE matchday = ? ORDER BY kickoff_at ASC').all(currentMatchday);
   const preds = db.prepare('SELECT * FROM predictions WHERE pool_id = ? AND user_id = ?').all(pool.id, req.session.user.id);
   const predByMatch = new Map(preds.map((p) => [p.match_id, p]));
   const standings = poolStandings(pool.id);
 
-  res.render('pool', { pool, matches, predByMatch, standings });
+  res.render('pool', { pool, matches, predByMatch, standings, currentMatchday });
 });
 
 app.post('/pools/:id/predictions/:matchId', auth, (req, res) => {

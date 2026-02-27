@@ -13,7 +13,7 @@
 <% }) %>
 <% if (!pools.length) { %><p class='muted'>No pools yet. Create one or join with a code.</p><% } %>
 </div></section>
-<section class='card'><h3>Upcoming Liga MX</h3>
+<section class='card'><h3>Liga MX <%= currentMatchday ? ('· Matchday ' + currentMatchday) : '' %></h3>
 <% nextMatches.forEach(m=> { %><div class='match-line'><span><%= m.home_team %> vs <%= m.away_team %></span><small><%= m.kickoff_at %></small></div><% }) %>
 </section>
 </main></body></html>
