@@ -12,29 +12,23 @@
 <% matches.forEach(m => { const p = predByMatch.get(m.id); const lockMs = new Date(m.kickoff_at).getTime() - (15 * 60 * 1000); const locked = m.status==='finished' || nowMs >= lockMs; %>
 <div class='prediction' data-match='<%= m.id %>'>
 <div class='prediction-head'>
-  <div class='fixture-line'>
-    <span class='teams'>
-      <img class='team-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/> <%= m.home_team %>
-      <span class='vs'>vs</span>
-      <%= m.away_team %> <img class='team-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/>
-    </span>
-    <% if ((m.status==='live' || m.status==='finished') && m.home_score !== null && m.away_score !== null) { %>
+  <% if ((m.status==='live' || m.status==='finished') && m.home_score !== null && m.away_score !== null) { %>
+    <div class='fixture-line'>
       <span class='score-line'>
         <strong><%= m.home_score %>-<%= m.away_score %></strong>
         <% if (m.status==='live') { %><span class='live-dot' title='Live now'></span><% } %>
       </span>
-    <% } %>
-  </div>
-
+    </div>
+  <% } %>
 </div>
 <div class='score-inputs'>
   <div class='score-col'>
-    <label><%= m.home_team %></label>
+    <label class='team-label'><img class='team-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/> <span><%= m.home_team %></span></label>
     <input type='number' min='0' class='ph' value='<%= p ? p.pred_home : "" %>' <%= locked ? 'disabled' : '' %> />
   </div>
   <div class='score-sep'>-</div>
   <div class='score-col'>
-    <label><%= m.away_team %></label>
+    <label class='team-label'><img class='team-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/> <span><%= m.away_team %></span></label>
     <input type='number' min='0' class='pa' value='<%= p ? p.pred_away : "" %>' <%= locked ? 'disabled' : '' %> />
   </div>
 </div>
