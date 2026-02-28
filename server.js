@@ -61,37 +61,15 @@ function poolStandings(poolId) {
 }
 
 function getUpcomingUniqueScheduledMatches() {
-  const scheduled = db.prepare(`
+  // Keep finished + live + scheduled, ordered by kickoff date/time
+  // Limit to a rolling window so list stays relevant.
+  return db.prepare(`
     SELECT *
     FROM matches
     WHERE external_id LIKE 'espn:%'
-      AND status IN ('scheduled','live')
+      AND kickoff_at >= datetime('now', '-14 days')
     ORDER BY kickoff_at ASC
   `).all();
-
-  const usedTeams = new Set();
-  const unique = [];
-
-  const now = Date.now();
-  const staleScheduledMs = 3 * 60 * 60 * 1000; // hide scheduled games 3h after kickoff
-
-  for (const m of scheduled) {
-    const home = String(m.home_team || '').toLowerCase();
-    const away = String(m.away_team || '').toLowerCase();
-    if (!home || !away) continue;
-
-    const kickoffMs = new Date(m.kickoff_at).getTime();
-    const staleScheduled = m.status === 'scheduled' && Number.isFinite(kickoffMs) && now > (kickoffMs + staleScheduledMs);
-    if (staleScheduled) continue;
-
-    if (usedTeams.has(home) || usedTeams.has(away)) continue;
-
-    unique.push(m);
-    usedTeams.add(home);
-    usedTeams.add(away);
-  }
-
-  return unique;
 }
 
 function shouldRunFrequentSyncNow() {
