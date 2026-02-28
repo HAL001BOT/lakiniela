@@ -93,7 +93,15 @@ button:disabled{opacity:.55;cursor:not-allowed}
   padding:4px 9px;border-radius:999px;font-size:.78rem;
 }
 .teams{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vs{opacity:.8;font-weight:600}
 .team-logo{width:20px;height:20px;object-fit:contain;background:transparent;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+
+.prediction{flex-direction:column;align-items:stretch}
+.prediction-head{display:grid;gap:4px}
+.fixture-line{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.score-line{display:inline-flex;align-items:center;gap:8px;font-size:1.02rem}
+.live-dot{width:9px;height:9px;border-radius:999px;background:var(--ok);box-shadow:0 0 0 4px #2fe2a833,0 0 10px #2fe2a8}
+
 .standings{padding-left:18px}
 .standings li{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #274080}
 .muted{color:var(--muted)}

@@ -11,14 +11,29 @@
 <div class='list'>
 <% matches.forEach(m => { const p = predByMatch.get(m.id); const lockMs = new Date(m.kickoff_at).getTime() - (15 * 60 * 1000); const locked = m.status==='finished' || nowMs >= lockMs; %>
 <div class='prediction' data-match='<%= m.id %>'>
-<div><strong class='teams'><img class='team-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/> <%= m.home_team %> vs <%= m.away_team %> <img class='team-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/></strong><small><%= m.status %> · <%= m.kickoff_local || m.kickoff_at %></small></div>
+<div class='prediction-head'>
+  <div class='fixture-line'>
+    <span class='teams'>
+      <img class='team-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/> <%= m.home_team %>
+      <span class='vs'>vs</span>
+      <%= m.away_team %> <img class='team-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/>
+    </span>
+    <% if ((m.status==='live' || m.status==='finished') && m.home_score !== null && m.away_score !== null) { %>
+      <span class='score-line'>
+        <strong><%= m.home_score %>-<%= m.away_score %></strong>
+        <% if (m.status==='live') { %><span class='live-dot' title='Live now'></span><% } %>
+      </span>
+    <% } %>
+  </div>
+  <small><%= m.status %> · <%= m.kickoff_local || m.kickoff_at %></small>
+</div>
 <div class='inline'>
 <input type='number' min='0' class='ph' value='<%= p ? p.pred_home : "" %>' <%= locked ? 'disabled' : '' %> />
 <span>-</span>
 <input type='number' min='0' class='pa' value='<%= p ? p.pred_away : "" %>' <%= locked ? 'disabled' : '' %> />
 <button class='save' <%= locked ? 'disabled' : '' %>><%= locked ? 'Locked' : 'Save' %></button>
-<% if (m.status==='live' && m.home_score !== null && m.away_score !== null) { %><span class='badge'>Live: <%= m.home_score %>-<%= m.away_score %></span><% } %>
-<% if (m.status==='finished') { %><span class='badge'>Final: <%= m.home_score %>-<%= m.away_score %></span><% } %>
+<% if (m.status==='live') { %><span class='badge'>Live</span><% } %>
+<% if (m.status==='finished') { %><span class='badge'>Final</span><% } %>
 <% if (locked && m.status!=='finished') { %><span class='badge'>Locked (-15m)</span><% } %>
 </div>
 </div>
