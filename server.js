@@ -65,9 +65,7 @@ function getUpcomingUniqueScheduledMatches() {
     SELECT *
     FROM matches
     WHERE external_id LIKE 'espn:%'
-      AND status = 'scheduled'
-      AND home_score IS NULL
-      AND away_score IS NULL
+      AND status IN ('scheduled','live')
     ORDER BY kickoff_at ASC
   `).all();
 

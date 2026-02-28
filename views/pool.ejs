@@ -7,7 +7,7 @@
 <li><span><%= s.name %></span><strong><%= s.points %> pts</strong></li>
 <% }) %>
 </ol></section>
-<section class='card'><h3>Predictions · Next Scheduled Matchday</h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>
+<section class='card'><h3>Predictions · Current / Next Matchday</h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>
 <div class='list'>
 <% matches.forEach(m => { const p = predByMatch.get(m.id); const lockMs = new Date(m.kickoff_at).getTime() - (15 * 60 * 1000); const locked = m.status==='finished' || nowMs >= lockMs; %>
 <div class='prediction' data-match='<%= m.id %>'>
@@ -17,6 +17,7 @@
 <span>-</span>
 <input type='number' min='0' class='pa' value='<%= p ? p.pred_away : "" %>' <%= locked ? 'disabled' : '' %> />
 <button class='save' <%= locked ? 'disabled' : '' %>><%= locked ? 'Locked' : 'Save' %></button>
+<% if (m.status==='live' && m.home_score !== null && m.away_score !== null) { %><span class='badge'>Live: <%= m.home_score %>-<%= m.away_score %></span><% } %>
 <% if (m.status==='finished') { %><span class='badge'>Final: <%= m.home_score %>-<%= m.away_score %></span><% } %>
 <% if (locked && m.status!=='finished') { %><span class='badge'>Locked (-15m)</span><% } %>
 </div>
