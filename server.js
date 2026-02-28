@@ -61,15 +61,61 @@ function poolStandings(poolId) {
 }
 
 function getUpcomingUniqueScheduledMatches() {
-  // Keep finished + live + scheduled, ordered by kickoff date/time
-  // Limit to a rolling window so list stays relevant.
-  return db.prepare(`
+  // ESPN scoreboard doesn't reliably expose jornada/week for Liga MX in this feed.
+  // So we infer a gameweek by grouping chronological matches where teams don't repeat.
+  const all = db.prepare(`
     SELECT *
     FROM matches
     WHERE external_id LIKE 'espn:%'
-      AND kickoff_at >= datetime('now', '-14 days')
+      AND kickoff_at >= datetime('now', '-21 days')
+      AND kickoff_at <= datetime('now', '+21 days')
     ORDER BY kickoff_at ASC
   `).all();
+
+  const rounds = [];
+  let current = [];
+  let usedTeams = new Set();
+
+  for (const m of all) {
+    const home = String(m.home_team || '').toLowerCase();
+    const away = String(m.away_team || '').toLowerCase();
+    if (!home || !away) continue;
+
+    const repeats = usedTeams.has(home) || usedTeams.has(away);
+    const fullRound = current.length >= 9; // Liga MX usually 9 matches / jornada
+
+    if ((repeats || fullRound) && current.length) {
+      rounds.push(current);
+      current = [];
+      usedTeams = new Set();
+    }
+
+    current.push(m);
+    usedTeams.add(home);
+    usedTeams.add(away);
+  }
+  if (current.length) rounds.push(current);
+
+  if (!rounds.length) return [];
+
+  const now = Date.now();
+
+  // pick current jornada first (has live, or in-progress schedule window)
+  const withLive = rounds.find((r) => r.some((m) => m.status === 'live'));
+  if (withLive) return withLive;
+
+  // otherwise pick the nearest upcoming jornada
+  const upcomingIndex = rounds.findIndex((r) => r.some((m) => new Date(m.kickoff_at).getTime() >= now));
+  if (upcomingIndex >= 0) {
+    const r = rounds[upcomingIndex];
+    // if we're just after kickoff and still same jornada, keep this one
+    const firstKickoff = Math.min(...r.map((m) => new Date(m.kickoff_at).getTime()).filter(Number.isFinite));
+    if (Number.isFinite(firstKickoff) && now >= (firstKickoff - 6 * 60 * 60 * 1000)) return r;
+    return r;
+  }
+
+  // fallback: latest known jornada
+  return rounds[rounds.length - 1];
 }
 
 function shouldRunFrequentSyncNow() {
