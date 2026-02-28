@@ -14,7 +14,7 @@
 <% if (!pools.length) { %><p class='muted'>No pools yet. Create one or join with a code.</p><% } %>
 </div></section>
 <section class='card'><h3>Liga MX · Next Scheduled Matchday</h3>
-<% nextMatches.forEach(m=> { %><div class='match-line'><span class='teams'><img class='team-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/> <%= m.home_team %> vs <%= m.away_team %> <img class='team-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/></span><small><%= m.kickoff_at %></small></div><% }) %>
+<% nextMatches.forEach(m=> { %><div class='match-line'><span class='teams'><img class='team-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/> <%= m.home_team %> vs <%= m.away_team %> <img class='team-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/></span><small><%= m.kickoff_local || m.kickoff_at %></small></div><% }) %>
 <% if (!nextMatches.length) { %><p class='muted'>No scheduled matches available yet. Try sync again in a bit.</p><% } %>
 </section>
 </main></body></html>

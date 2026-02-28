@@ -35,6 +35,19 @@ function code() {
   return crypto.randomBytes(3).toString('hex').toUpperCase();
 }
 
+function formatCentral(iso) {
+  const dt = new Date(iso);
+  if (!Number.isFinite(dt.getTime())) return iso;
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(dt) + ' CT';
+}
+
 function poolStandings(poolId) {
   return db.prepare(`
     SELECT u.id, u.name, COALESCE(SUM(p.points),0) points, COUNT(p.id) picks
@@ -137,7 +150,10 @@ app.get('/dashboard', auth, (req, res) => {
     ORDER BY p.created_at DESC
   `).all(req.session.user.id);
 
-  const nextMatches = getUpcomingUniqueScheduledMatches();
+  const nextMatches = getUpcomingUniqueScheduledMatches().map((m) => ({
+    ...m,
+    kickoff_local: formatCentral(m.kickoff_at),
+  }));
   res.render('dashboard', { pools, nextMatches });
 });
 
@@ -167,7 +183,10 @@ app.get('/pools/:id', auth, (req, res) => {
   const isMember = db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = ?').get(pool.id, req.session.user.id);
   if (!isMember) return res.status(403).send('Join this pool first.');
 
-  const matches = getUpcomingUniqueScheduledMatches();
+  const matches = getUpcomingUniqueScheduledMatches().map((m) => ({
+    ...m,
+    kickoff_local: formatCentral(m.kickoff_at),
+  }));
   const preds = db.prepare('SELECT * FROM predictions WHERE pool_id = ? AND user_id = ?').all(pool.id, req.session.user.id);
   const predByMatch = new Map(preds.map((p) => [p.match_id, p]));
   const standings = poolStandings(pool.id);

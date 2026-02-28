@@ -11,7 +11,7 @@
 <div class='list'>
 <% matches.forEach(m => { const p = predByMatch.get(m.id); const lockMs = new Date(m.kickoff_at).getTime() - (15 * 60 * 1000); const locked = m.status==='finished' || nowMs >= lockMs; %>
 <div class='prediction' data-match='<%= m.id %>'>
-<div><strong class='teams'><img class='team-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/> <%= m.home_team %> vs <%= m.away_team %> <img class='team-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/></strong><small><%= m.status %> · <%= m.kickoff_at %></small></div>
+<div><strong class='teams'><img class='team-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/> <%= m.home_team %> vs <%= m.away_team %> <img class='team-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/></strong><small><%= m.status %> · <%= m.kickoff_local || m.kickoff_at %></small></div>
 <div class='inline'>
 <input type='number' min='0' class='ph' value='<%= p ? p.pred_home : "" %>' <%= locked ? 'disabled' : '' %> />
 <span>-</span>
