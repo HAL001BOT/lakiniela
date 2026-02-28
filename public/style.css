@@ -30,8 +30,11 @@ h1,h2,h3{margin:.2rem 0 .7rem;letter-spacing:.2px}
   background:linear-gradient(180deg,#101d4aee,#0b1438ee);
   border-bottom:1px solid #31478f;
   backdrop-filter:blur(8px);
+  overflow:hidden;
 }
-.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.top > a{white-space:nowrap;font-weight:600}
+.top .badge{white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;overflow:hidden}
 .brand h1{font-size:1.3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brand-logo{
   width:48px;height:48px;object-fit:contain;border-radius:50%;
@@ -68,6 +71,7 @@ input,button{
   padding:11px 12px;border-radius:12px;border:1px solid #3653a8;
   background:#0a1437;color:var(--txt);font-size:.98rem;
 }
+input[type='number']{width:100%;min-width:0}
 input:focus{outline:none;border-color:#58bbff;box-shadow:0 0 0 3px #58bbff2c}
 button{
   border:none;font-weight:700;cursor:pointer;
@@ -126,4 +130,20 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .grid.two{grid-template-columns:1fr}
   .inline{flex-direction:column;align-items:stretch}
   .inline input,.inline button{width:100%}
+}
+
+@media (max-width:700px){
+  .top{
+    display:grid;
+    grid-template-columns:1fr auto;
+    grid-template-areas:
+      'back code'
+      'brand brand';
+    row-gap:10px;
+    padding:12px 14px;
+  }
+  .top > a{grid-area:back}
+  .top .badge{grid-area:code;justify-self:end}
+  .top .brand{grid-area:brand}
+  .brand h1{font-size:1.15rem}
 }
