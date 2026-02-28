@@ -4,7 +4,8 @@
   "description": "LaKiniela - Liga MX pool fantasy app",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npm run smoke",
+    "smoke": "node scripts/smoke.js",
     "start": "node server.js",
     "dev": "node server.js"
   },

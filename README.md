@@ -26,3 +26,18 @@ Open: `http://localhost:3090`
 ## Notes
 - Sync now uses ESPN public scoreboard feed (no API key required).
 - DB file: `data/lakiniela.db`
+
+## Faster delivery (CI/CD)
+This repo now includes GitHub Actions at `.github/workflows/ci-deploy.yml`.
+
+What it does:
+- Runs smoke checks on PRs to `main`
+- Runs smoke checks on pushes to `main`
+- Optionally triggers a Render deploy hook after CI passes
+
+To enable instant Render trigger after push:
+1. In Render, copy your service Deploy Hook URL
+2. In GitHub repo settings → Secrets and variables → Actions, add:
+   - `RENDER_DEPLOY_HOOK_URL` = your hook URL
+
+If that secret is not set, deployment still works via Render auto-deploy from `main`.
