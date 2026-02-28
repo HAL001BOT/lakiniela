@@ -8,6 +8,10 @@
 <% }) %>
 </ol></section>
 <section class='card'><h3>Predictions · Current / Next Matchday</h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>
+<div class='invite-row'>
+  <input class='invite-link' id='invite-link' readonly value='<%= inviteLink %>' />
+  <button type='button' id='copy-invite'>Copy invite</button>
+</div>
 <div class='list'>
 <% matches.forEach(m => { const p = predByMatch.get(m.id); const lockMs = new Date(m.kickoff_at).getTime() - (15 * 60 * 1000); const locked = m.status==='finished' || nowMs >= lockMs; %>
 <div class='prediction' data-match='<%= m.id %>'>
@@ -52,5 +56,22 @@
 </main>
 <script>
 document.querySelectorAll('.prediction .save').forEach(btn=>{btn.onclick=async()=>{const row=btn.closest('.prediction');const id=row.dataset.match;const ph=row.querySelector('.ph').value;const pa=row.querySelector('.pa').value;const r=await fetch(`/pools/<%= pool.id %>/predictions/${id}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pred_home:ph,pred_away:pa})});if(r.ok){btn.textContent='Saved';setTimeout(()=>btn.textContent='Save',900);}else{const j=await r.json().catch(()=>({}));alert(j.error||'Prediction is locked.');}}})
+
+const copyBtn = document.getElementById('copy-invite');
+const inviteInput = document.getElementById('invite-link');
+if (copyBtn && inviteInput) {
+  copyBtn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteInput.value);
+      copyBtn.textContent = 'Copied';
+      setTimeout(() => (copyBtn.textContent = 'Copy invite'), 1200);
+    } catch {
+      inviteInput.select();
+      document.execCommand('copy');
+      copyBtn.textContent = 'Copied';
+      setTimeout(() => (copyBtn.textContent = 'Copy invite'), 1200);
+    }
+  };
+}
 </script>
 </body></html>

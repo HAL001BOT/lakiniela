@@ -8,6 +8,7 @@ const { recalcPointsForMatch, syncLigaMxScores } = require('./services/updater')
 
 const app = express();
 const PORT = process.env.PORT || 3090;
+app.set('trust proxy', 1);
 
 app.set('view engine', 'ejs');
 app.use(express.urlencoded({ extended: true }));
@@ -33,6 +34,19 @@ function auth(req, res, next) {
 
 function code() {
   return crypto.randomBytes(3).toString('hex').toUpperCase();
+}
+
+function consumePendingInvite(req, res) {
+  const inviteCode = String(req.session.pendingInviteCode || '').trim().toUpperCase();
+  if (!inviteCode || !req.session.user) return false;
+
+  const pool = db.prepare('SELECT * FROM pools WHERE code = ?').get(inviteCode);
+  delete req.session.pendingInviteCode;
+  if (!pool) return false;
+
+  db.prepare('INSERT OR IGNORE INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(pool.id, req.session.user.id);
+  res.redirect(`/pools/${pool.id}`);
+  return true;
 }
 
 function formatCentral(iso) {
@@ -155,6 +169,7 @@ app.post('/register', (req, res) => {
     const hash = bcrypt.hashSync(password, 10);
     const info = db.prepare('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)').run(name.trim(), email.trim().toLowerCase(), hash);
     req.session.user = { id: info.lastInsertRowid, name: name.trim(), email: email.trim().toLowerCase() };
+    if (consumePendingInvite(req, res)) return;
     res.redirect('/dashboard');
   } catch {
     res.render('register', { error: 'Email already in use.' });
@@ -166,6 +181,7 @@ app.post('/login', (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE email = ?').get((req.body.email || '').trim().toLowerCase());
   if (!user || !bcrypt.compareSync(req.body.password || '', user.password_hash)) return res.render('login', { error: 'Invalid credentials.' });
   req.session.user = { id: user.id, name: user.name, email: user.email };
+  if (consumePendingInvite(req, res)) return;
   res.redirect('/dashboard');
 });
 
@@ -206,6 +222,20 @@ app.post('/pools/join', auth, (req, res) => {
   res.redirect(`/pools/${pool.id}`);
 });
 
+app.get(['/invite/:code', '/join/:code'], (req, res) => {
+  const inviteCode = String(req.params.code || '').trim().toUpperCase();
+  const pool = db.prepare('SELECT * FROM pools WHERE code = ?').get(inviteCode);
+  if (!pool) return res.status(404).send('Invite link not valid.');
+
+  if (!req.session.user) {
+    req.session.pendingInviteCode = inviteCode;
+    return res.redirect('/login');
+  }
+
+  db.prepare('INSERT OR IGNORE INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(pool.id, req.session.user.id);
+  return res.redirect(`/pools/${pool.id}`);
+});
+
 app.get('/pools/:id', auth, (req, res) => {
   const pool = db.prepare('SELECT * FROM pools WHERE id = ?').get(req.params.id);
   if (!pool) return res.status(404).send('Pool not found');
@@ -220,8 +250,10 @@ app.get('/pools/:id', auth, (req, res) => {
   const preds = db.prepare('SELECT * FROM predictions WHERE pool_id = ? AND user_id = ?').all(pool.id, req.session.user.id);
   const predByMatch = new Map(preds.map((p) => [p.match_id, p]));
   const standings = poolStandings(pool.id);
+  const proto = req.get('x-forwarded-proto') || req.protocol;
+  const inviteLink = `${proto}://${req.get('host')}/invite/${pool.code}`;
 
-  res.render('pool', { pool, matches, predByMatch, standings, nowMs: Date.now() });
+  res.render('pool', { pool, matches, predByMatch, standings, nowMs: Date.now(), inviteLink });
 });
 
 app.post('/pools/:id/predictions/:matchId', auth, (req, res) => {

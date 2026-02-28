@@ -84,6 +84,9 @@ button:disabled{opacity:.55;cursor:not-allowed}
 
 .inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .row{display:grid;gap:10px}
+.invite-row{display:flex;gap:8px;align-items:center;margin:10px 0 12px}
+.invite-link{flex:1;min-width:0;background:#0a1437;color:#dfe8ff;font-size:.88rem}
+#copy-invite{white-space:nowrap}
 
 .pool-item,.prediction,.match-line{
   display:flex;justify-content:space-between;gap:10px;padding:10px;
@@ -135,6 +138,8 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .grid.two{grid-template-columns:1fr}
   .inline{flex-direction:column;align-items:stretch}
   .inline input,.inline button{width:100%}
+  .invite-row{flex-direction:column;align-items:stretch}
+  .invite-row button{width:100%}
 }
 
 @media (max-width:700px){
