@@ -118,8 +118,8 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .team-label-right{justify-content:center;text-align:center}
 .score-input-wrap{display:flex;align-items:center;gap:8px}
 .score-input-wrap-right{flex-direction:row-reverse}
-.score-box-logo{width:46px;height:46px;flex:0 0 46px}
-.score-input-wrap input[type='number']{height:36px;padding:6px 8px;font-size:.9rem}
+.score-box-logo{width:56px;height:56px;flex:0 0 56px}
+.score-input-wrap input[type='number']{width:72px;height:32px;max-width:72px;padding:4px 6px;font-size:.95rem;text-align:center}
 .score-sep{font-weight:800;font-size:1.5rem;opacity:.9;padding-bottom:10px}
 .fixture-meta{display:block;margin-top:6px;color:var(--muted)}
 
