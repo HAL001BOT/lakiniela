@@ -25,17 +25,26 @@
       </span>
     <% } %>
   </div>
-  <small><%= m.status %> · <%= m.kickoff_local || m.kickoff_at %></small>
+
+</div>
+<div class='score-inputs'>
+  <div class='score-col'>
+    <label><%= m.home_team %></label>
+    <input type='number' min='0' class='ph' value='<%= p ? p.pred_home : "" %>' <%= locked ? 'disabled' : '' %> />
+  </div>
+  <div class='score-sep'>-</div>
+  <div class='score-col'>
+    <label><%= m.away_team %></label>
+    <input type='number' min='0' class='pa' value='<%= p ? p.pred_away : "" %>' <%= locked ? 'disabled' : '' %> />
+  </div>
 </div>
 <div class='inline'>
-<input type='number' min='0' class='ph' value='<%= p ? p.pred_home : "" %>' <%= locked ? 'disabled' : '' %> />
-<span>-</span>
-<input type='number' min='0' class='pa' value='<%= p ? p.pred_away : "" %>' <%= locked ? 'disabled' : '' %> />
 <button class='save' <%= locked ? 'disabled' : '' %>><%= locked ? 'Locked' : 'Save' %></button>
 <% if (m.status==='live') { %><span class='badge'>Live</span><% } %>
 <% if (m.status==='finished') { %><span class='badge'>Final</span><% } %>
 <% if (locked && m.status!=='finished') { %><span class='badge'>Locked (-15m)</span><% } %>
 </div>
+<small class='fixture-meta'><%= m.kickoff_local || m.kickoff_at %></small>
 </div>
 <% }) %>
 </div></section>
