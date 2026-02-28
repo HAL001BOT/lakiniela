@@ -112,8 +112,9 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .score-col{display:grid;gap:6px}
 .score-col label{font-size:.82rem;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .team-label{display:flex;align-items:center;gap:6px}
-.team-label .team-logo{width:22px;height:22px;flex:0 0 22px}
+.team-label-right{justify-content:flex-end;text-align:right}
 .score-input-wrap{display:flex;align-items:center;gap:8px}
+.score-input-wrap-right{flex-direction:row-reverse}
 .score-box-logo{width:36px;height:36px;flex:0 0 36px}
 .score-input-wrap input[type='number']{height:42px}
 .score-sep{font-weight:800;font-size:1.5rem;opacity:.9;padding-bottom:10px}
