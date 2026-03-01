@@ -132,6 +132,24 @@ function getUpcomingUniqueScheduledMatches() {
   return rounds[rounds.length - 1];
 }
 
+function lockPoolMatches(poolId, matches) {
+  const insert = db.prepare('INSERT OR IGNORE INTO pool_matches (pool_id, match_id) VALUES (?, ?)');
+  for (const m of matches || []) {
+    if (!m?.id) continue;
+    insert.run(poolId, m.id);
+  }
+}
+
+function getPoolMatches(poolId) {
+  return db.prepare(`
+    SELECT m.*
+    FROM pool_matches pm
+    JOIN matches m ON m.id = pm.match_id
+    WHERE pm.pool_id = ?
+    ORDER BY m.kickoff_at ASC
+  `).all(poolId);
+}
+
 function shouldRunFrequentSyncNow() {
   const live = db.prepare(`
     SELECT COUNT(*) c
@@ -207,9 +225,12 @@ app.post('/pools/create', auth, (req, res) => {
   const name = String(req.body.name || '').trim();
   if (!name) return res.redirect('/dashboard');
   const poolCode = code();
+  const snapshotMatches = getUpcomingUniqueScheduledMatches();
+
   const tx = db.transaction(() => {
     const info = db.prepare('INSERT INTO pools (name, code, owner_id) VALUES (?, ?, ?)').run(name, poolCode, req.session.user.id);
     db.prepare('INSERT INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(info.lastInsertRowid, req.session.user.id);
+    lockPoolMatches(info.lastInsertRowid, snapshotMatches);
   });
   tx();
   res.redirect('/dashboard');
@@ -243,7 +264,15 @@ app.get('/pools/:id', auth, (req, res) => {
   const isMember = db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = ?').get(pool.id, req.session.user.id);
   if (!isMember) return res.status(403).send('Join this pool first.');
 
-  const matches = getUpcomingUniqueScheduledMatches().map((m) => ({
+  let matches = getPoolMatches(pool.id);
+  if (!matches.length) {
+    // Backfill old pools created before match-locking feature
+    const snapshotMatches = getUpcomingUniqueScheduledMatches();
+    lockPoolMatches(pool.id, snapshotMatches);
+    matches = getPoolMatches(pool.id);
+  }
+
+  matches = matches.map((m) => ({
     ...m,
     kickoff_local: formatCentral(m.kickoff_at),
   }));
@@ -267,8 +296,9 @@ app.post('/pools/:id/predictions/:matchId', auth, (req, res) => {
   }
 
   const member = db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = ?').get(poolId, req.session.user.id);
+  const poolMatch = db.prepare('SELECT 1 FROM pool_matches WHERE pool_id = ? AND match_id = ?').get(poolId, matchId);
   const match = db.prepare('SELECT * FROM matches WHERE id = ?').get(matchId);
-  if (!member || !match) return res.status(403).json({ ok: false });
+  if (!member || !poolMatch || !match) return res.status(403).json({ ok: false, error: 'Match is not part of this pool.' });
 
   const kickoffMs = new Date(match.kickoff_at).getTime();
   const lockMs = kickoffMs - (15 * 60 * 1000);

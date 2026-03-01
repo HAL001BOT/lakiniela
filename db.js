@@ -66,6 +66,16 @@ CREATE TABLE IF NOT EXISTS predictions (
   FOREIGN KEY(user_id) REFERENCES users(id),
   FOREIGN KEY(match_id) REFERENCES matches(id)
 );
+
+CREATE TABLE IF NOT EXISTS pool_matches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pool_id INTEGER NOT NULL,
+  match_id INTEGER NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(pool_id, match_id),
+  FOREIGN KEY(pool_id) REFERENCES pools(id),
+  FOREIGN KEY(match_id) REFERENCES matches(id)
+);
 `);
 
 try { db.exec('ALTER TABLE matches ADD COLUMN home_logo TEXT'); } catch {}
