@@ -142,17 +142,9 @@ function getUpcomingUniqueScheduledMatches() {
 
   if (!candidates.length) return [];
 
-  candidates.sort((a, b) => {
-    const aHasLive = a.some((m) => m.status === 'live') ? 0 : 1;
-    const bHasLive = b.some((m) => m.status === 'live') ? 0 : 1;
-    if (aHasLive !== bHasLive) return aHasLive - bHasLive;
-
-    const aKick = Math.min(...a.map((m) => new Date(m.kickoff_at).getTime()).filter(Number.isFinite));
-    const bKick = Math.min(...b.map((m) => new Date(m.kickoff_at).getTime()).filter(Number.isFinite));
-    return aKick - bKick;
-  });
-
-  return candidates[0];
+  return candidates
+    .flat()
+    .sort((a, b) => new Date(a.kickoff_at).getTime() - new Date(b.kickoff_at).getTime());
 }
 
 function lockPoolMatches(poolId, matches) {
