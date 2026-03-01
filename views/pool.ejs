@@ -49,7 +49,7 @@
 <% if (m.status==='finished') { %><span class='badge'>Final</span><% } %>
 <% if (locked && m.status!=='finished') { %><span class='badge'>Locked (-15m)</span><% } %>
 </div>
-<small class='fixture-meta'><%= m.league || 'League' %> · <%= m.kickoff_local || m.kickoff_at %></small>
+<small class='fixture-meta'><%= m.kickoff_local || m.kickoff_at %></small>
 </div>
 <% }) %>
 </div></section>

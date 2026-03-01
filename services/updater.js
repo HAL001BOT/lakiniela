@@ -25,13 +25,7 @@ function recalcPointsForMatch(matchId) {
 function upsertMatch(match) {
   if (!match.home || !match.away || !match.kickoffAt || !match.externalId) return null;
 
-  let existing = db.prepare('SELECT id FROM matches WHERE external_id = ?').get(match.externalId);
-  if (!existing && String(match.externalId).startsWith('espn:mex.1:')) {
-    const legacyId = `espn:${String(match.externalId).split(':').pop()}`;
-    existing = db.prepare('SELECT id FROM matches WHERE external_id = ?').get(legacyId);
-    if (existing) db.prepare('UPDATE matches SET external_id = ? WHERE id = ?').run(match.externalId, existing.id);
-  }
-
+  const existing = db.prepare('SELECT id FROM matches WHERE external_id = ?').get(match.externalId);
   if (existing) {
     db.prepare(`
       UPDATE matches
@@ -79,7 +73,7 @@ function upsertMatch(match) {
   return { created: true, id: info.lastInsertRowid };
 }
 
-async function fetchEspnLeague(path, leagueName) {
+async function fetchEspnLigaMx() {
   const now = new Date();
   const from = new Date(now);
   from.setDate(from.getDate() - 7);
@@ -87,7 +81,7 @@ async function fetchEspnLeague(path, leagueName) {
   to.setDate(to.getDate() + 14);
   const fmt = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
 
-  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${path}/scoreboard`;
+  const url = 'https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard';
   const { data } = await axios.get(url, {
     params: { dates: `${fmt(from)}-${fmt(to)}` },
     timeout: 20000,
@@ -107,8 +101,8 @@ async function fetchEspnLeague(path, leagueName) {
     const awayScore = (status === 'finished' || status === 'live') ? parsedAway : null;
 
     return {
-      externalId: `espn:${path}:${ev.id}`,
-      league: leagueName,
+      externalId: `espn:${ev.id}`,
+      league: 'Liga MX',
       season: String(ev.season?.year || ''),
       matchday: comp.week?.number || null,
       home: home?.team?.displayName,
@@ -125,11 +119,7 @@ async function fetchEspnLeague(path, leagueName) {
 
 async function syncLigaMxScores() {
   const source = 'espn-public';
-  const [ligaMx, mls] = await Promise.all([
-    fetchEspnLeague('mex.1', 'Liga MX'),
-    fetchEspnLeague('usa.1', 'MLS'),
-  ]);
-  const fixtures = [...ligaMx, ...mls];
+  const fixtures = await fetchEspnLigaMx();
 
   let created = 0;
   let updated = 0;
