@@ -25,7 +25,13 @@ function recalcPointsForMatch(matchId) {
 function upsertMatch(match) {
   if (!match.home || !match.away || !match.kickoffAt || !match.externalId) return null;
 
-  const existing = db.prepare('SELECT id FROM matches WHERE external_id = ?').get(match.externalId);
+  let existing = db.prepare('SELECT id FROM matches WHERE external_id = ?').get(match.externalId);
+  if (!existing && String(match.externalId).startsWith('espn:mex.1:')) {
+    const legacyId = `espn:${String(match.externalId).split(':').pop()}`;
+    existing = db.prepare('SELECT id FROM matches WHERE external_id = ?').get(legacyId);
+    if (existing) db.prepare('UPDATE matches SET external_id = ? WHERE id = ?').run(match.externalId, existing.id);
+  }
+
   if (existing) {
     db.prepare(`
       UPDATE matches
@@ -73,7 +79,7 @@ function upsertMatch(match) {
   return { created: true, id: info.lastInsertRowid };
 }
 
-async function fetchEspnLigaMx() {
+async function fetchEspnLeague(path, leagueName) {
   const now = new Date();
   const from = new Date(now);
   from.setDate(from.getDate() - 7);
@@ -81,7 +87,7 @@ async function fetchEspnLigaMx() {
   to.setDate(to.getDate() + 14);
   const fmt = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
 
-  const url = 'https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard';
+  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${path}/scoreboard`;
   const { data } = await axios.get(url, {
     params: { dates: `${fmt(from)}-${fmt(to)}` },
     timeout: 20000,
@@ -101,8 +107,8 @@ async function fetchEspnLigaMx() {
     const awayScore = (status === 'finished' || status === 'live') ? parsedAway : null;
 
     return {
-      externalId: `espn:${ev.id}`,
-      league: 'Liga MX',
+      externalId: `espn:${path}:${ev.id}`,
+      league: leagueName,
       season: String(ev.season?.year || ''),
       matchday: comp.week?.number || null,
       home: home?.team?.displayName,
@@ -119,7 +125,11 @@ async function fetchEspnLigaMx() {
 
 async function syncLigaMxScores() {
   const source = 'espn-public';
-  const fixtures = await fetchEspnLigaMx();
+  const [ligaMx, mls] = await Promise.all([
+    fetchEspnLeague('mex.1', 'Liga MX'),
+    fetchEspnLeague('usa.1', 'MLS'),
+  ]);
+  const fixtures = [...ligaMx, ...mls];
 
   let created = 0;
   let updated = 0;

@@ -1,6 +1,6 @@
 # LaKiniela ⚽
 
-Modern Liga MX pool app (web MVP).
+Modern Liga MX + MLS pool app (web MVP).
 
 ## What it does
 - User signup/login
@@ -10,7 +10,7 @@ Modern Liga MX pool app (web MVP).
   - **3 points** = correct match result (win/draw/loss)
   - **5 points** = exact score
 - Pool standings dashboard
-- Automatic fixture/results import + scoring sync every 20 minutes (ESPN public feed)
+- Automatic fixture/results import + scoring sync every 20 minutes (ESPN public feed for Liga MX + MLS)
 
 ## Run
 ```bash

@@ -74,29 +74,18 @@ function poolStandings(poolId) {
   `).all(poolId);
 }
 
-function getUpcomingUniqueScheduledMatches() {
-  // ESPN scoreboard doesn't reliably expose jornada/week for Liga MX in this feed.
-  // So we infer a gameweek by grouping chronological matches where teams don't repeat.
-  const all = db.prepare(`
-    SELECT *
-    FROM matches
-    WHERE external_id LIKE 'espn:%'
-      AND kickoff_at >= datetime('now', '-21 days')
-      AND kickoff_at <= datetime('now', '+21 days')
-    ORDER BY kickoff_at ASC
-  `).all();
-
+function buildLeagueRounds(matches, expectedRoundSize = 10) {
   const rounds = [];
   let current = [];
   let usedTeams = new Set();
 
-  for (const m of all) {
+  for (const m of matches) {
     const home = String(m.home_team || '').toLowerCase();
     const away = String(m.away_team || '').toLowerCase();
     if (!home || !away) continue;
 
     const repeats = usedTeams.has(home) || usedTeams.has(away);
-    const fullRound = current.length >= 9; // Liga MX usually 9 matches / jornada
+    const fullRound = current.length >= expectedRoundSize;
 
     if ((repeats || fullRound) && current.length) {
       rounds.push(current);
@@ -108,28 +97,62 @@ function getUpcomingUniqueScheduledMatches() {
     usedTeams.add(home);
     usedTeams.add(away);
   }
+
   if (current.length) rounds.push(current);
+  return rounds;
+}
 
-  if (!rounds.length) return [];
-
+function pickRound(rounds) {
+  if (!rounds.length) return null;
   const now = Date.now();
 
-  // pick current jornada first (has live, or in-progress schedule window)
   const withLive = rounds.find((r) => r.some((m) => m.status === 'live'));
   if (withLive) return withLive;
 
-  // otherwise pick the nearest upcoming jornada
-  const upcomingIndex = rounds.findIndex((r) => r.some((m) => new Date(m.kickoff_at).getTime() >= now));
-  if (upcomingIndex >= 0) {
-    const r = rounds[upcomingIndex];
-    // if we're just after kickoff and still same jornada, keep this one
-    const firstKickoff = Math.min(...r.map((m) => new Date(m.kickoff_at).getTime()).filter(Number.isFinite));
-    if (Number.isFinite(firstKickoff) && now >= (firstKickoff - 6 * 60 * 60 * 1000)) return r;
-    return r;
+  const upcoming = rounds.find((r) => r.some((m) => new Date(m.kickoff_at).getTime() >= now));
+  if (upcoming) return upcoming;
+
+  return rounds[rounds.length - 1];
+}
+
+function getUpcomingUniqueScheduledMatches() {
+  const all = db.prepare(`
+    SELECT *
+    FROM matches
+    WHERE external_id LIKE 'espn:%'
+      AND kickoff_at >= datetime('now', '-21 days')
+      AND kickoff_at <= datetime('now', '+21 days')
+    ORDER BY kickoff_at ASC
+  `).all();
+
+  const byLeague = new Map();
+  for (const m of all) {
+    const key = m.league || 'Unknown';
+    if (!byLeague.has(key)) byLeague.set(key, []);
+    byLeague.get(key).push(m);
   }
 
-  // fallback: latest known jornada
-  return rounds[rounds.length - 1];
+  const candidates = [];
+  for (const [league, items] of byLeague.entries()) {
+    const expected = league === 'Liga MX' ? 9 : 15;
+    const rounds = buildLeagueRounds(items, expected);
+    const picked = pickRound(rounds);
+    if (picked?.length) candidates.push(picked);
+  }
+
+  if (!candidates.length) return [];
+
+  candidates.sort((a, b) => {
+    const aHasLive = a.some((m) => m.status === 'live') ? 0 : 1;
+    const bHasLive = b.some((m) => m.status === 'live') ? 0 : 1;
+    if (aHasLive !== bHasLive) return aHasLive - bHasLive;
+
+    const aKick = Math.min(...a.map((m) => new Date(m.kickoff_at).getTime()).filter(Number.isFinite));
+    const bKick = Math.min(...b.map((m) => new Date(m.kickoff_at).getTime()).filter(Number.isFinite));
+    return aKick - bKick;
+  });
+
+  return candidates[0];
 }
 
 function lockPoolMatches(poolId, matches) {
