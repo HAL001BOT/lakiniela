@@ -28,19 +28,19 @@
 </div>
 <div class='score-inputs'>
   <div class='score-col'>
-    <label class='team-label'><span><%= m.home_team %></span></label>
     <div class='score-input-wrap'>
       <img class='team-logo score-box-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/>
       <input type='number' min='0' class='ph' value='<%= p ? p.pred_home : "" %>' <%= locked ? 'disabled' : '' %> />
     </div>
+    <label class='team-label team-label-below'><span><%= m.home_team %></span></label>
   </div>
   <div class='score-sep'>-</div>
   <div class='score-col'>
-    <label class='team-label team-label-right'><span><%= m.away_team %></span></label>
     <div class='score-input-wrap score-input-wrap-right'>
       <img class='team-logo score-box-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/>
       <input type='number' min='0' class='pa' value='<%= p ? p.pred_away : "" %>' <%= locked ? 'disabled' : '' %> />
     </div>
+    <label class='team-label team-label-right team-label-below'><span><%= m.away_team %></span></label>
   </div>
 </div>
 <div class='inline'>
