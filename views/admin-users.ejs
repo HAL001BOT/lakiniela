@@ -16,6 +16,10 @@
         <button>Save role</button>
       </form>
       <% if (u.id !== me.id) { %>
+      <form method='post' action='/admin/users/<%= u.id %>/reset-password' class='inline'>
+        <input name='new_password' type='text' placeholder='New password (min 8)' required />
+        <button style='background:#0e7490'>Reset password</button>
+      </form>
       <form method='post' action='/admin/users/<%= u.id %>/delete' onsubmit="return confirm('Delete this user?')">
         <button style='background:#b4233c'>Delete</button>
       </form>

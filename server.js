@@ -294,6 +294,31 @@ app.post('/login', loginLimiter, (req, res) => {
 
 app.post('/logout', auth, (req, res) => req.session.destroy(() => res.redirect('/login')));
 
+app.get('/account/password', auth, (req, res) => {
+  res.render('change-password', { error: null, ok: false });
+});
+
+app.post('/account/password', auth, (req, res) => {
+  const current = String(req.body.current_password || '');
+  const nextPw = String(req.body.new_password || '');
+  const confirm = String(req.body.confirm_password || '');
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.user.id);
+  if (!user || !bcrypt.compareSync(current, user.password_hash)) {
+    return res.status(400).render('change-password', { error: 'Current password is incorrect.', ok: false });
+  }
+  if (nextPw.length < 8) {
+    return res.status(400).render('change-password', { error: 'New password must be at least 8 characters.', ok: false });
+  }
+  if (nextPw !== confirm) {
+    return res.status(400).render('change-password', { error: 'New passwords do not match.', ok: false });
+  }
+
+  const hash = bcrypt.hashSync(nextPw, 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, user.id);
+  return res.render('change-password', { error: null, ok: true });
+});
+
 app.get('/dashboard', auth, (req, res) => {
   const pools = db.prepare(`
     SELECT p.*, (SELECT COUNT(*) FROM pool_members pm WHERE pm.pool_id = p.id) members
@@ -357,6 +382,15 @@ app.post('/admin/users/:id/delete', admin, (req, res) => {
     db.prepare('DELETE FROM users WHERE id = ?').run(id);
   });
   tx();
+  res.redirect('/admin/users');
+});
+
+app.post('/admin/users/:id/reset-password', admin, (req, res) => {
+  const id = Number(req.params.id);
+  const newPassword = String(req.body.new_password || '');
+  if (!Number.isInteger(id) || newPassword.length < 8) return res.redirect('/admin/users');
+  const hash = bcrypt.hashSync(newPassword, 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, id);
   res.redirect('/admin/users');
 });
 

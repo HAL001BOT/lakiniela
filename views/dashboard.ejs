@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>Dashboard · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css'/></head><body>
-<header class='top'><div class='brand'><img class='brand-logo' src='/img/logo.png' alt='lakiniela logo'/></div><div class='inline'><% if (isAdmin) { %><a href='/admin/users'><button type='button'>Admin</button></a><% } %><form method='post' action='/logout'><button>Logout</button></form></div></header>
+<header class='top'><div class='brand'><img class='brand-logo' src='/img/logo.png' alt='lakiniela logo'/></div><div class='inline'><a href='/account/password'><button type='button'>Password</button></a><% if (isAdmin) { %><a href='/admin/users'><button type='button'>Admin</button></a><% } %><form method='post' action='/logout'><button>Logout</button></form></div></header>
 <main class='grid'>
 <section class='card'><h2>Welcome, <%= user.name %></h2>
 <div class='row'>
