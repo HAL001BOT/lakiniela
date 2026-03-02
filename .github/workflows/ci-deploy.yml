@@ -35,13 +35,19 @@ jobs:
     needs: ci
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Render deploy hook (optional)
-        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL != '' }}
+      - name: Resolve deploy hook
+        id: hook
         run: |
-          curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
-        env:
-          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          HOOK="${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+          if [ -z "$HOOK" ]; then HOOK="${{ secrets.RENDER_DEPLOY_HOOK }}"; fi
+          echo "hook=$HOOK" >> "$GITHUB_OUTPUT"
+
+      - name: Trigger Render deploy hook
+        if: ${{ steps.hook.outputs.hook != '' }}
+        run: |
+          curl -fsS -X POST "${{ steps.hook.outputs.hook }}"
+          echo "Render deploy hook triggered."
 
       - name: No deploy hook configured
-        if: ${{ secrets.RENDER_DEPLOY_HOOK_URL == '' }}
-        run: echo "RENDER_DEPLOY_HOOK_URL not set. Skipping deploy hook."
+        if: ${{ steps.hook.outputs.hook == '' }}
+        run: echo "Set RENDER_DEPLOY_HOOK_URL (or RENDER_DEPLOY_HOOK) in GitHub Actions secrets."
