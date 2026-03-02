@@ -37,11 +37,11 @@ h1,h2,h3{margin:.2rem 0 .7rem;letter-spacing:.2px}
 .brand{display:flex;align-items:center;gap:10px;min-width:0;overflow:hidden}
 .brand h1{font-size:1.3rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .brand-logo{
-  width:64px;height:64px;object-fit:contain;border-radius:50%;
+  width:64px;height:64px;object-fit:contain;border-radius:0;
   aspect-ratio:1/1;flex:0 0 64px;
-  border:1px solid #4f6ed0;
-  box-shadow:0 0 0 3px #ffffff08,0 8px 22px #1d4ed866;
-  background:#f6f8ff;
+  border:none;
+  box-shadow:none;
+  background:transparent;
 }
 .brand-logo.big{width:160px;height:160px;display:block;margin:0 auto 12px;aspect-ratio:1/1}
 
