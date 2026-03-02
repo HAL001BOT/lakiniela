@@ -96,6 +96,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
   background:linear-gradient(180deg,#0d1840,#0b1537);
   margin:8px 0;
 }
+.match-line small{align-self:flex-start;text-align:right;max-width:48%}
 .pool-item{flex-direction:column}
 .badge{
   background:linear-gradient(90deg,#1f4fd0,#7237f3);
@@ -103,6 +104,8 @@ button:disabled{opacity:.55;cursor:not-allowed}
   padding:4px 9px;border-radius:999px;font-size:.78rem;
 }
 .teams{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+.teams-col{display:grid;gap:10px;min-width:0}
+.team-row{display:flex;align-items:center;gap:10px;font-weight:700;line-height:1.2}
 .vs{opacity:.8;font-weight:600}
 .team-logo{width:28px;height:28px;aspect-ratio:1/1;flex:0 0 28px;object-fit:contain;background:transparent;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
 
@@ -143,6 +146,8 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .inline input,.inline button{width:100%}
   .invite-row{flex-direction:column;align-items:stretch}
   .invite-row button{width:100%}
+  .match-line{flex-direction:column;align-items:stretch}
+  .match-line small{max-width:100%;text-align:left}
 }
 
 @media (max-width:700px){

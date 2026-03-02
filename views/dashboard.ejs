@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>Dashboard · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css'/></head><body>
-<header class='top'><div class='brand'><img class='brand-logo' src='/img/logo.png' alt='lakiniela logo'/><h1>lakiniela</h1></div><div class='inline'><% if (isAdmin) { %><a href='/admin/users'><button type='button'>Admin</button></a><% } %><form method='post' action='/logout'><button>Logout</button></form></div></header>
+<header class='top'><div class='brand'><img class='brand-logo' src='/img/logo.png' alt='lakiniela logo'/></div><div class='inline'><% if (isAdmin) { %><a href='/admin/users'><button type='button'>Admin</button></a><% } %><form method='post' action='/logout'><button>Logout</button></form></div></header>
 <main class='grid'>
 <section class='card'><h2>Welcome, <%= user.name %></h2>
 <div class='row'>
@@ -14,7 +14,7 @@
 <% if (!pools.length) { %><p class='muted'>No pools yet. Create one or join with a code.</p><% } %>
 </div></section>
 <section class='card'><h3>Liga MX Jornada <%= jornadaNumber || 9 %></h3>
-<% nextMatches.forEach(m=> { %><div class='match-line'><span class='teams'><img class='team-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/> <%= m.home_team %> vs <%= m.away_team %> <img class='team-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/></span><small><%= m.status %> · <%= m.kickoff_local || m.kickoff_at %><% if ((m.status==='live' || m.status==='finished') && m.home_score !== null && m.away_score !== null) { %> · <%= m.home_score %>-<%= m.away_score %><% } %></small></div><% }) %>
+<% nextMatches.forEach(m=> { %><div class='match-line'><div class='teams-col'><div class='team-row'><img class='team-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/><span><%= m.home_team %></span></div><div class='team-row'><img class='team-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/><span><%= m.away_team %></span></div></div><small><%= m.status %> · <%= m.kickoff_local || m.kickoff_at %><% if ((m.status==='live' || m.status==='finished') && m.home_score !== null && m.away_score !== null) { %> · <%= m.home_score %>-<%= m.away_score %><% } %></small></div><% }) %>
 <% if (!nextMatches.length) { %><p class='muted'>No scheduled matches available yet. Try sync again in a bit.</p><% } %>
 </section>
 </main></body></html>
