@@ -11,8 +11,10 @@ db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
+  username TEXT UNIQUE,
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
+  role TEXT DEFAULT 'user',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -80,6 +82,29 @@ CREATE TABLE IF NOT EXISTS pool_matches (
 
 try { db.exec('ALTER TABLE matches ADD COLUMN home_logo TEXT'); } catch {}
 try { db.exec('ALTER TABLE matches ADD COLUMN away_logo TEXT'); } catch {}
+try { db.exec('ALTER TABLE users ADD COLUMN username TEXT'); } catch {}
+try { db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch {}
+try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)'); } catch {}
+
+// backfill usernames from email prefix for legacy users
+const legacyUsers = db.prepare("SELECT id, email FROM users WHERE username IS NULL OR TRIM(username) = ''").all();
+for (const u of legacyUsers) {
+  const base = String((u.email || '').split('@')[0] || `user${u.id}`).toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '') || `user${u.id}`;
+  let candidate = base;
+  let i = 1;
+  while (db.prepare('SELECT 1 FROM users WHERE username = ? AND id != ?').get(candidate, u.id)) {
+    i += 1;
+    candidate = `${base}${i}`;
+  }
+  db.prepare('UPDATE users SET username = ? WHERE id = ?').run(candidate, u.id);
+}
+
+// ensure one admin exists
+const hasAdmin = db.prepare("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1").get();
+if (!hasAdmin) {
+  const firstUser = db.prepare('SELECT id FROM users ORDER BY id ASC LIMIT 1').get();
+  if (firstUser) db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(firstUser.id);
+}
 
 const countMatches = db.prepare('SELECT COUNT(*) c FROM matches').get().c;
 if (!countMatches) {

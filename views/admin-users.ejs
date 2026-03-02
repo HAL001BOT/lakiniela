@@ -1,0 +1,29 @@
+<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>Admin · Users</title><link rel='icon' href='/img/logo.jpg'/><link rel='stylesheet' href='/style.css'/></head><body>
+<header class='top'><a href='/dashboard'>← Dashboard</a><div class='brand'><img class='brand-logo' src='/img/logo.jpg' alt='lakiniela logo'/><h1>Admin · Users</h1></div><span class='badge'>@<%= me.username %></span></header>
+<main class='grid'>
+<section class='card'><h3>Users</h3>
+<div class='list'>
+<% users.forEach(u => { %>
+  <div class='pool-item'>
+    <strong><%= u.name %> (@<%= u.username %>)</strong>
+    <span><%= u.email %> · <%= u.pool_count %> pools · <%= u.role %></span>
+    <div class='inline'>
+      <form method='post' action='/admin/users/<%= u.id %>/role' class='inline'>
+        <select name='role'>
+          <option value='user' <%= u.role === 'user' ? 'selected' : '' %>>user</option>
+          <option value='admin' <%= u.role === 'admin' ? 'selected' : '' %>>admin</option>
+        </select>
+        <button>Save role</button>
+      </form>
+      <% if (u.id !== me.id) { %>
+      <form method='post' action='/admin/users/<%= u.id %>/delete' onsubmit="return confirm('Delete this user?')">
+        <button style='background:#b4233c'>Delete</button>
+      </form>
+      <% } %>
+    </div>
+  </div>
+<% }) %>
+</div>
+</section>
+</main>
+</body></html>

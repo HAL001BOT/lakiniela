@@ -32,6 +32,12 @@ function auth(req, res, next) {
   next();
 }
 
+function admin(req, res, next) {
+  if (!req.session.user) return res.redirect('/login');
+  if (req.session.user.role !== 'admin') return res.status(403).send('Admin only');
+  next();
+}
+
 function code() {
   return crypto.randomBytes(3).toString('hex').toUpperCase();
 }
@@ -200,24 +206,27 @@ app.get('/', (req, res) => (req.session.user ? res.redirect('/dashboard') : res.
 
 app.get('/register', (_req, res) => res.render('register', { error: null }));
 app.post('/register', (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name || !email || !password) return res.render('register', { error: 'Fill all fields.' });
+  const { name, username, email, password } = req.body;
+  if (!name || !username || !email || !password) return res.render('register', { error: 'Fill all fields.' });
   try {
+    const uname = String(username).trim().toLowerCase();
+    if (!/^[a-z0-9_]{3,24}$/.test(uname)) return res.render('register', { error: 'Username must be 3-24 chars (letters, numbers, underscore).' });
     const hash = bcrypt.hashSync(password, 10);
-    const info = db.prepare('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)').run(name.trim(), email.trim().toLowerCase(), hash);
-    req.session.user = { id: info.lastInsertRowid, name: name.trim(), email: email.trim().toLowerCase() };
+    const info = db.prepare('INSERT INTO users (name, username, email, password_hash, role) VALUES (?, ?, ?, ?, ?)')
+      .run(name.trim(), uname, email.trim().toLowerCase(), hash, 'user');
+    req.session.user = { id: info.lastInsertRowid, name: name.trim(), username: uname, email: email.trim().toLowerCase(), role: 'user' };
     if (consumePendingInvite(req, res)) return;
     res.redirect('/dashboard');
   } catch {
-    res.render('register', { error: 'Email already in use.' });
+    res.render('register', { error: 'Username or email already in use.' });
   }
 });
 
 app.get('/login', (_req, res) => res.render('login', { error: null }));
 app.post('/login', (req, res) => {
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get((req.body.email || '').trim().toLowerCase());
+  const user = db.prepare('SELECT * FROM users WHERE username = ?').get((req.body.username || '').trim().toLowerCase());
   if (!user || !bcrypt.compareSync(req.body.password || '', user.password_hash)) return res.render('login', { error: 'Invalid credentials.' });
-  req.session.user = { id: user.id, name: user.name, email: user.email };
+  req.session.user = { id: user.id, name: user.name, username: user.username, email: user.email, role: user.role || 'user' };
   if (consumePendingInvite(req, res)) return;
   res.redirect('/dashboard');
 });
@@ -238,7 +247,40 @@ app.get('/dashboard', auth, (req, res) => {
     ...m,
     kickoff_local: formatCentral(m.kickoff_at),
   }));
-  res.render('dashboard', { pools, nextMatches, jornadaNumber: matchdayView.jornadaNumber });
+  res.render('dashboard', { pools, nextMatches, jornadaNumber: matchdayView.jornadaNumber, isAdmin: req.session.user.role === 'admin' });
+});
+
+app.get('/admin/users', admin, (req, res) => {
+  const users = db.prepare(`
+    SELECT u.id, u.name, u.username, u.email, u.role, u.created_at,
+           (SELECT COUNT(*) FROM pool_members pm WHERE pm.user_id = u.id) pool_count
+    FROM users u
+    ORDER BY u.created_at DESC
+  `).all();
+  res.render('admin-users', { users, me: req.session.user });
+});
+
+app.post('/admin/users/:id/role', admin, (req, res) => {
+  const id = Number(req.params.id);
+  const role = req.body.role === 'admin' ? 'admin' : 'user';
+  if (!Number.isInteger(id)) return res.redirect('/admin/users');
+  db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
+  if (req.session.user.id === id) req.session.user.role = role;
+  res.redirect('/admin/users');
+});
+
+app.post('/admin/users/:id/delete', admin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id === req.session.user.id) return res.redirect('/admin/users');
+
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM predictions WHERE user_id = ?').run(id);
+    db.prepare('DELETE FROM pool_members WHERE user_id = ?').run(id);
+    db.prepare('DELETE FROM pools WHERE owner_id = ?').run(id);
+    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  });
+  tx();
+  res.redirect('/admin/users');
 });
 
 app.post('/pools/create', auth, (req, res) => {
