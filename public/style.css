@@ -16,10 +16,11 @@ body{
   margin:0;
   font-family:Inter,system-ui,Arial,sans-serif;
   color:var(--txt);
-  background:
-    radial-gradient(1200px 700px at 15% -10%, #1a2e7a55, transparent 60%),
-    radial-gradient(900px 500px at 95% 0%, #7b2cff3d, transparent 65%),
-    linear-gradient(180deg,var(--bg2),var(--bg));
+  background-color:var(--bg);
+  background-image:linear-gradient(180deg,var(--bg2),var(--bg));
+  background-repeat:no-repeat;
+  background-size:cover;
+  background-attachment:fixed;
 }
 a{color:var(--accent);text-decoration:none}
 h1,h2,h3{margin:.2rem 0 .7rem;letter-spacing:.2px}
