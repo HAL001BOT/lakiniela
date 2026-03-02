@@ -9,7 +9,10 @@
 <section class='card'><h3>Your Pools</h3>
 <div class='list'>
 <% pools.forEach(p=> { %>
-<a class='pool-item' href='/pools/<%= p.id %>'><strong><%= p.name %></strong><span>Code: <%= p.code %> · <%= p.members %> members</span></a>
+<a class='pool-item' href='/pools/<%= p.id %>'>
+  <div class='pool-item-head'><img class='pool-item-logo' src='/img/logo.png' alt='pool logo'/><strong><%= p.name %></strong></div>
+  <span>Code: <%= p.code %> · <%= p.members %> members</span>
+</a>
 <% }) %>
 <% if (!pools.length) { %><p class='muted'>No pools yet. Create one or join with a code.</p><% } %>
 </div></section>
