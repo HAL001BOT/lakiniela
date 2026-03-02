@@ -8,17 +8,35 @@ const { recalcPointsForMatch, syncLigaMxScores } = require('./services/updater')
 
 const app = express();
 const PORT = process.env.PORT || 3090;
+const isProd = process.env.NODE_ENV === 'production';
 app.set('trust proxy', 1);
+
+const sessionSecret = process.env.SESSION_SECRET;
+if (isProd && (!sessionSecret || sessionSecret.length < 24)) {
+  throw new Error('SESSION_SECRET is required (min 24 chars) in production.');
+}
 
 app.set('view engine', 'ejs');
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(express.static('public'));
+app.use((req, res, next) => {
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || 'lakiniela-secret',
+    secret: sessionSecret || crypto.randomBytes(32).toString('hex'),
     resave: false,
     saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+    },
   })
 );
 
@@ -26,6 +44,49 @@ app.use((req, res, next) => {
   res.locals.user = req.session.user || null;
   next();
 });
+
+function createIpRateLimiter({ windowMs, max, message }) {
+  const hits = new Map();
+  return (req, res, next) => {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const row = hits.get(ip);
+    if (!row || now > row.resetAt) {
+      hits.set(ip, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    row.count += 1;
+    if (row.count > max) return res.status(429).send(message || 'Too many requests');
+    return next();
+  };
+}
+
+const loginLimiter = createIpRateLimiter({ windowMs: 10 * 60 * 1000, max: 30, message: 'Too many login attempts. Try again soon.' });
+const adminLimiter = createIpRateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Too many admin requests.' });
+
+function sameOriginPostGuard(req, res, next) {
+  if (req.method !== 'POST') return next();
+  const path = req.path || '';
+  if (path.startsWith('/admin/sync') || path.startsWith('/admin/matches/')) return next();
+
+  const host = req.get('host');
+  const origin = req.get('origin');
+  const referer = req.get('referer');
+
+  const allowed = (value) => {
+    if (!value) return false;
+    try {
+      return new URL(value).host === host;
+    } catch {
+      return false;
+    }
+  };
+
+  if (allowed(origin) || allowed(referer)) return next();
+  return res.status(403).send('Blocked by CSRF protection.');
+}
+
+app.use(sameOriginPostGuard);
 
 function auth(req, res, next) {
   if (!req.session.user) return res.redirect('/login');
@@ -223,7 +284,7 @@ app.post('/register', (req, res) => {
 });
 
 app.get('/login', (_req, res) => res.render('login', { error: null }));
-app.post('/login', (req, res) => {
+app.post('/login', loginLimiter, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get((req.body.username || '').trim().toLowerCase());
   if (!user || !bcrypt.compareSync(req.body.password || '', user.password_hash)) return res.render('login', { error: 'Invalid credentials.' });
   req.session.user = { id: user.id, name: user.name, username: user.username, email: user.email, role: user.role || 'user' };
@@ -249,6 +310,8 @@ app.get('/dashboard', auth, (req, res) => {
   }));
   res.render('dashboard', { pools, nextMatches, jornadaNumber: matchdayView.jornadaNumber, isAdmin: req.session.user.role === 'admin' });
 });
+
+app.use('/admin', adminLimiter);
 
 app.get('/admin/users', admin, (req, res) => {
   const users = db.prepare(`
