@@ -139,8 +139,9 @@ button:disabled{opacity:.55;cursor:not-allowed}
 
 @media (max-width:900px){
   .grid.two{grid-template-columns:1fr}
-  .inline{flex-direction:column;align-items:stretch}
-  .inline input,.inline button{width:100%}
+  .row .inline{flex-direction:column;align-items:stretch}
+  .row .inline input,.row .inline button{width:100%}
+  .prediction .inline{flex-direction:row;align-items:center;flex-wrap:wrap}
   .invite-row{flex-direction:column;align-items:stretch}
   .invite-row button{width:100%}
 }
