@@ -257,7 +257,21 @@ app.get('/admin/users', admin, (req, res) => {
     FROM users u
     ORDER BY u.created_at DESC
   `).all();
-  res.render('admin-users', { users, me: req.session.user });
+
+  const memberships = db.prepare(`
+    SELECT pm.user_id, pm.pool_id, p.name AS pool_name, p.code AS pool_code
+    FROM pool_members pm
+    JOIN pools p ON p.id = pm.pool_id
+    ORDER BY p.created_at DESC
+  `).all();
+
+  const poolsByUser = new Map();
+  memberships.forEach((m) => {
+    if (!poolsByUser.has(m.user_id)) poolsByUser.set(m.user_id, []);
+    poolsByUser.get(m.user_id).push(m);
+  });
+
+  res.render('admin-users', { users, me: req.session.user, poolsByUser });
 });
 
 app.post('/admin/users/:id/role', admin, (req, res) => {
@@ -280,6 +294,16 @@ app.post('/admin/users/:id/delete', admin, (req, res) => {
     db.prepare('DELETE FROM users WHERE id = ?').run(id);
   });
   tx();
+  res.redirect('/admin/users');
+});
+
+app.post('/admin/pools/:poolId/users/:userId/remove', admin, (req, res) => {
+  const poolId = Number(req.params.poolId);
+  const userId = Number(req.params.userId);
+  if (!Number.isInteger(poolId) || !Number.isInteger(userId)) return res.redirect('/admin/users');
+
+  db.prepare('DELETE FROM predictions WHERE pool_id = ? AND user_id = ?').run(poolId, userId);
+  db.prepare('DELETE FROM pool_members WHERE pool_id = ? AND user_id = ?').run(poolId, userId);
   res.redirect('/admin/users');
 });
 

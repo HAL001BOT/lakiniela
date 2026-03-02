@@ -21,6 +21,22 @@
       </form>
       <% } %>
     </div>
+
+    <% const memberPools = (poolsByUser && poolsByUser.get(u.id)) || []; %>
+    <% if (memberPools.length) { %>
+      <div class='list'>
+        <% memberPools.forEach(mp => { %>
+          <div class='match-line'>
+            <span><strong><%= mp.pool_name %></strong> · <small><%= mp.pool_code %></small></span>
+            <% if (u.id !== me.id) { %>
+            <form method='post' action='/admin/pools/<%= mp.pool_id %>/users/<%= u.id %>/remove' onsubmit="return confirm('Remove this user from this pool?')">
+              <button style='background:#b45309'>Remove from pool</button>
+            </form>
+            <% } %>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
   </div>
 <% }) %>
 </div>
