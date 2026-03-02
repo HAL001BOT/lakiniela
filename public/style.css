@@ -74,6 +74,10 @@ input,button{
 }
 .auth-card button{min-height:54px;font-size:1.2rem;padding:14px 16px}
 .auth-card input{min-height:54px;font-size:1.12rem}
+.auth-card{font-size:1.12rem}
+.auth-card h1{font-size:2.8rem}
+.auth-card .error{font-size:1.02rem}
+.auth-card a{font-size:1.06rem}
 input[type='number']{width:100%;min-width:0;padding:8px 10px;font-size:.94rem}
 input:focus{outline:none;border-color:#58bbff;box-shadow:0 0 0 3px #58bbff2c}
 button{
