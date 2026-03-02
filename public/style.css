@@ -72,12 +72,13 @@ input,button{
   padding:11px 12px;border-radius:12px;border:1px solid #3653a8;
   background:#0a1437;color:var(--txt);font-size:.98rem;
 }
-.auth-card button{min-height:54px;font-size:1.2rem;padding:14px 16px}
-.auth-card input{min-height:54px;font-size:1.12rem}
-.auth-card{font-size:1.12rem}
-.auth-card h1{font-size:2.8rem}
-.auth-card .error{font-size:1.02rem}
-.auth-card a{font-size:1.06rem}
+.auth-card button{min-height:58px;font-size:1.28rem;padding:14px 16px}
+.auth-card input{min-height:58px;font-size:1.22rem}
+.auth-card input::placeholder{font-size:1.1em}
+.auth-card{font-size:1.18rem}
+.auth-card h1{font-size:3rem}
+.auth-card .error{font-size:1.08rem}
+.auth-card a{font-size:1.14rem}
 input[type='number']{width:100%;min-width:0;padding:8px 10px;font-size:.94rem}
 input:focus{outline:none;border-color:#58bbff;box-shadow:0 0 0 3px #58bbff2c}
 button{
