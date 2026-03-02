@@ -71,6 +71,8 @@ input,button{
   padding:11px 12px;border-radius:12px;border:1px solid #3653a8;
   background:#0a1437;color:var(--txt);font-size:.98rem;
 }
+.auth-card button{min-height:54px;font-size:1.2rem;padding:14px 16px}
+.auth-card input{min-height:54px;font-size:1.12rem}
 input[type='number']{width:100%;min-width:0;padding:8px 10px;font-size:.94rem}
 input:focus{outline:none;border-color:#58bbff;box-shadow:0 0 0 3px #58bbff2c}
 button{

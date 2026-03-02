@@ -1,6 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcryptjs');
 
 const dbPath = path.join(__dirname, 'data', 'lakiniela.db');
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
@@ -99,7 +100,17 @@ for (const u of legacyUsers) {
   db.prepare('UPDATE users SET username = ? WHERE id = ?').run(candidate, u.id);
 }
 
-// ensure one admin exists
+// ensure one admin exists and can log in with known bootstrap password
+const bootstrapAdminPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD || '123456';
+const adminHash = bcrypt.hashSync(bootstrapAdminPassword, 10);
+const adminUser = db.prepare("SELECT id FROM users WHERE username = 'admin' LIMIT 1").get();
+if (!adminUser) {
+  db.prepare("INSERT INTO users (name, username, email, password_hash, role) VALUES (?, 'admin', ?, ?, 'admin')")
+    .run('Admin', 'admin@local.lakiniela', adminHash);
+} else {
+  db.prepare("UPDATE users SET role = 'admin', password_hash = ? WHERE id = ?").run(adminHash, adminUser.id);
+}
+
 const hasAdmin = db.prepare("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1").get();
 if (!hasAdmin) {
   const firstUser = db.prepare('SELECT id FROM users ORDER BY id ASC LIMIT 1').get();
