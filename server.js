@@ -371,6 +371,38 @@ app.get('/pools/:id', auth, (req, res) => {
   res.render('pool', { pool, matches, predByMatch, standings, nowMs: Date.now(), inviteLink });
 });
 
+app.get('/pools/:id/users/:userId/picks', auth, (req, res) => {
+  const pool = db.prepare('SELECT * FROM pools WHERE id = ?').get(req.params.id);
+  if (!pool) return res.status(404).send('Pool not found');
+
+  const viewerMember = db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = ?').get(pool.id, req.session.user.id);
+  if (!viewerMember) return res.status(403).send('Join this pool first.');
+
+  const targetUserId = Number(req.params.userId);
+  if (!Number.isInteger(targetUserId)) return res.status(400).send('Invalid user');
+
+  const targetMember = db.prepare('SELECT u.id, u.name FROM pool_members pm JOIN users u ON u.id = pm.user_id WHERE pm.pool_id = ? AND pm.user_id = ?').get(pool.id, targetUserId);
+  if (!targetMember) return res.status(404).send('User is not in this pool.');
+
+  let matches = getPoolMatches(pool.id);
+  if (!matches.length) {
+    const snapshotMatches = getUpcomingUniqueScheduledMatches().matches;
+    lockPoolMatches(pool.id, snapshotMatches);
+    matches = getPoolMatches(pool.id);
+  }
+
+  const picks = db.prepare('SELECT * FROM predictions WHERE pool_id = ? AND user_id = ?').all(pool.id, targetUserId);
+  const pickByMatch = new Map(picks.map((p) => [p.match_id, p]));
+
+  const rows = matches.map((m) => ({
+    ...m,
+    kickoff_local: formatCentral(m.kickoff_at),
+    pick: pickByMatch.get(m.id) || null,
+  }));
+
+  res.render('pool-user-picks', { pool, targetMember, rows });
+});
+
 app.post('/pools/:id/predictions/:matchId', auth, (req, res) => {
   const poolId = Number(req.params.id);
   const matchId = Number(req.params.matchId);
