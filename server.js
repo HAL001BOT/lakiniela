@@ -74,6 +74,16 @@ function poolStandings(poolId) {
   `).all(poolId);
 }
 
+function inferJornadaFromAnchor(matches) {
+  // Anchor requested by product: current visible matchday is Jornada 9.
+  const anchorJornada = 9;
+  const anchorDate = new Date('2026-03-03T00:00:00-06:00').getTime();
+  const firstKick = Math.min(...matches.map((m) => new Date(m.kickoff_at).getTime()).filter(Number.isFinite));
+  if (!Number.isFinite(firstKick) || !Number.isFinite(anchorDate)) return anchorJornada;
+  const weeks = Math.round((firstKick - anchorDate) / (7 * 24 * 60 * 60 * 1000));
+  return Math.max(1, anchorJornada + weeks);
+}
+
 function getUpcomingUniqueScheduledMatches() {
   // ESPN scoreboard doesn't reliably expose jornada/week for Liga MX in this feed.
   // So we infer a gameweek by grouping chronological matches where teams don't repeat.
@@ -110,26 +120,35 @@ function getUpcomingUniqueScheduledMatches() {
   }
   if (current.length) rounds.push(current);
 
-  if (!rounds.length) return [];
+  if (!rounds.length) return { matches: [], jornadaNumber: 9 };
 
   const now = Date.now();
 
+  let selected = null;
+
   // pick current jornada first (has live, or in-progress schedule window)
   const withLive = rounds.find((r) => r.some((m) => m.status === 'live'));
-  if (withLive) return withLive;
+  if (withLive) selected = withLive;
 
   // otherwise pick the nearest upcoming jornada
-  const upcomingIndex = rounds.findIndex((r) => r.some((m) => new Date(m.kickoff_at).getTime() >= now));
-  if (upcomingIndex >= 0) {
-    const r = rounds[upcomingIndex];
-    // if we're just after kickoff and still same jornada, keep this one
-    const firstKickoff = Math.min(...r.map((m) => new Date(m.kickoff_at).getTime()).filter(Number.isFinite));
-    if (Number.isFinite(firstKickoff) && now >= (firstKickoff - 6 * 60 * 60 * 1000)) return r;
-    return r;
+  if (!selected) {
+    const upcomingIndex = rounds.findIndex((r) => r.some((m) => new Date(m.kickoff_at).getTime() >= now));
+    if (upcomingIndex >= 0) {
+      const r = rounds[upcomingIndex];
+      selected = r;
+    }
   }
 
   // fallback: latest known jornada
-  return rounds[rounds.length - 1];
+  if (!selected) selected = rounds[rounds.length - 1];
+
+  const explicitMatchday = selected
+    .map((m) => Number(m.matchday))
+    .filter((n) => Number.isInteger(n) && n > 0)
+    .sort((a, b) => b - a)[0];
+
+  const jornadaNumber = explicitMatchday || inferJornadaFromAnchor(selected);
+  return { matches: selected, jornadaNumber };
 }
 
 function lockPoolMatches(poolId, matches) {
@@ -214,18 +233,19 @@ app.get('/dashboard', auth, (req, res) => {
     ORDER BY p.created_at DESC
   `).all(req.session.user.id);
 
-  const nextMatches = getUpcomingUniqueScheduledMatches().map((m) => ({
+  const matchdayView = getUpcomingUniqueScheduledMatches();
+  const nextMatches = matchdayView.matches.map((m) => ({
     ...m,
     kickoff_local: formatCentral(m.kickoff_at),
   }));
-  res.render('dashboard', { pools, nextMatches });
+  res.render('dashboard', { pools, nextMatches, jornadaNumber: matchdayView.jornadaNumber });
 });
 
 app.post('/pools/create', auth, (req, res) => {
   const name = String(req.body.name || '').trim();
   if (!name) return res.redirect('/dashboard');
   const poolCode = code();
-  const snapshotMatches = getUpcomingUniqueScheduledMatches();
+  const snapshotMatches = getUpcomingUniqueScheduledMatches().matches;
 
   const tx = db.transaction(() => {
     const info = db.prepare('INSERT INTO pools (name, code, owner_id) VALUES (?, ?, ?)').run(name, poolCode, req.session.user.id);
@@ -267,7 +287,7 @@ app.get('/pools/:id', auth, (req, res) => {
   let matches = getPoolMatches(pool.id);
   if (!matches.length) {
     // Backfill old pools created before match-locking feature
-    const snapshotMatches = getUpcomingUniqueScheduledMatches();
+    const snapshotMatches = getUpcomingUniqueScheduledMatches().matches;
     lockPoolMatches(pool.id, snapshotMatches);
     matches = getPoolMatches(pool.id);
   }
