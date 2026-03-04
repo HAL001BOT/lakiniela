@@ -3,8 +3,14 @@
 <main class='grid two'>
 <section class='card'><h3>Standings</h3>
 <ol class='standings'>
-<% standings.forEach(s => { %>
-<li><span><a href='/pools/<%= pool.id %>/users/<%= s.id %>/picks'><%= s.name %></a></span><strong><%= s.points %> pts</strong></li>
+<% standings.forEach((s, i) => { %>
+<li class='<%= i === 0 ? "standing-top" : "" %>'>
+  <span>
+    <a href='/pools/<%= pool.id %>/users/<%= s.id %>/picks'><%= s.name %></a>
+    <% if (i === 0) { %><span class='leader-badge'>👑 Top</span><% } %>
+  </span>
+  <strong><%= s.points %> pts</strong>
+</li>
 <% }) %>
 </ol></section>
 <section class='card'><h3>Predictions · Current / Next Matchday</h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>

@@ -139,6 +139,25 @@ button:disabled{opacity:.55;cursor:not-allowed}
 
 .standings{padding-left:18px}
 .standings li{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #274080}
+.standings li.standing-top{
+  background:linear-gradient(90deg,rgba(255,215,0,.18),rgba(255,215,0,.04));
+  border:1px solid rgba(255,215,0,.45);
+  border-radius:10px;
+  padding:10px 12px;
+  margin:2px 0 10px;
+}
+.leader-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  margin-left:8px;
+  font-size:.72rem;
+  padding:2px 8px;
+  border-radius:999px;
+  border:1px solid rgba(255,215,0,.55);
+  background:rgba(255,215,0,.12);
+  color:#ffe58a;
+}
 .muted{color:var(--muted)}
 .points-good{color:var(--ok)}
 .points-zero{color:var(--muted)}
