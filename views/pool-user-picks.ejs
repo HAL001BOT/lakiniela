@@ -14,6 +14,12 @@
             <span class='muted'>No pick</span>
           <% } %>
           · <%= m.kickoff_local || m.kickoff_at %>
+          <% if (m.status === 'finished' && m.home_score != null && m.away_score != null) { %>
+            <br/>Final: <strong><%= m.home_score %>-<%= m.away_score %></strong>
+            <% if (m.pick) { %>
+              · Points: <strong><%= Number.isFinite(m.pick.points) ? m.pick.points : (m.pick.points ?? 0) %></strong>
+            <% } %>
+          <% } %>
         </small>
       </div>
     <% }) %>
