@@ -140,6 +140,8 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .standings{padding-left:18px}
 .standings li{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #274080}
 .muted{color:var(--muted)}
+.points-good{color:var(--ok)}
+.points-zero{color:var(--muted)}
 .error{background:#4d1f39;border:1px solid #d8689f;padding:8px;border-radius:10px}
 
 .auth-card form,

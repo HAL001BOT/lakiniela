@@ -17,7 +17,8 @@
           <% if (m.status === 'finished' && m.home_score != null && m.away_score != null) { %>
             <br/>Final: <strong><%= m.home_score %>-<%= m.away_score %></strong>
             <% if (m.pick) { %>
-              · Points: <strong><%= Number.isFinite(m.pick.points) ? m.pick.points : (m.pick.points ?? 0) %></strong>
+              <% const pts = Number.isFinite(m.pick.points) ? m.pick.points : (m.pick.points ?? 0); %>
+              · Points: <strong class='<%= pts > 0 ? "points-good" : "points-zero" %>'><%= pts %></strong>
             <% } %>
           <% } %>
         </small>
