@@ -1,13 +1,13 @@
-<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css'/></head><body>
+<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260304b'/></head><body>
 <header class='top'><a href='/dashboard'>← Dashboard</a><div class='brand'><img class='brand-logo' src='/img/logo.png' alt='lakiniela logo'/><h1><%= pool.name %></h1></div><span class='badge'>Code: <%= pool.code %></span></header>
 <main class='grid two'>
 <section class='card'><h3>Standings</h3>
 <ol class='standings'>
 <% standings.forEach((s, i) => { %>
-<li class='<%= i === 0 ? "standing-top" : "" %>'>
+<li class='<%= i === 0 ? "standing-top" : "" %>' <%= i === 0 ? "style='background:linear-gradient(90deg,rgba(255,215,0,.18),rgba(255,215,0,.04));border:1px solid rgba(255,215,0,.45);border-radius:10px;padding:10px 12px;margin:2px 0 10px;'" : "" %>>
   <span>
     <a href='/pools/<%= pool.id %>/users/<%= s.id %>/picks'><%= s.name %></a>
-    <% if (i === 0) { %><span class='leader-badge'>👑 Top</span><% } %>
+    <% if (i === 0) { %><span class='leader-badge' style='display:inline-flex;align-items:center;gap:4px;margin-left:8px;font-size:.72rem;padding:2px 8px;border-radius:999px;border:1px solid rgba(255,215,0,.55);background:rgba(255,215,0,.12);color:#ffe58a;'>👑 Top</span><% } %>
   </span>
   <strong><%= s.points %> pts</strong>
 </li>
