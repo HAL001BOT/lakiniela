@@ -320,13 +320,45 @@ app.post('/account/password', auth, (req, res) => {
 });
 
 app.get('/dashboard', auth, (req, res) => {
-  const pools = db.prepare(`
+  const poolsRaw = db.prepare(`
     SELECT p.*, (SELECT COUNT(*) FROM pool_members pm WHERE pm.pool_id = p.id) members
     FROM pools p
     JOIN pool_members pm ON pm.pool_id = p.id
     WHERE pm.user_id = ?
     ORDER BY p.created_at DESC
   `).all(req.session.user.id);
+
+  const winnerStmt = db.prepare(`
+    SELECT u.name, COALESCE(SUM(pr.points), 0) AS points, COUNT(pr.id) AS picks
+    FROM pool_members pm
+    JOIN users u ON u.id = pm.user_id
+    LEFT JOIN predictions pr ON pr.pool_id = pm.pool_id AND pr.user_id = pm.user_id
+    WHERE pm.pool_id = ?
+    GROUP BY u.id, u.name
+    ORDER BY points DESC, picks DESC, u.name ASC
+    LIMIT 1
+  `);
+
+  const pools = poolsRaw.map((p) => {
+    const matchStats = db.prepare(`
+      SELECT COUNT(*) AS total,
+             SUM(CASE WHEN m.status = 'finished' THEN 1 ELSE 0 END) AS finished
+      FROM pool_matches pm
+      JOIN matches m ON m.id = pm.match_id
+      WHERE pm.pool_id = ?
+    `).get(p.id);
+
+    const totalMatches = Number(matchStats?.total || 0);
+    const finishedMatches = Number(matchStats?.finished || 0);
+    const poolFinished = totalMatches > 0 && finishedMatches === totalMatches;
+    const winner = poolFinished ? winnerStmt.get(p.id) : null;
+
+    return {
+      ...p,
+      pool_finished: poolFinished,
+      winner_name: winner?.name || null,
+    };
+  });
 
   const matchdayView = getUpcomingUniqueScheduledMatches();
   const nextMatches = matchdayView.matches.map((m) => ({

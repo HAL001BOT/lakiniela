@@ -105,7 +105,9 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .match-line small{align-self:flex-start;text-align:right;max-width:48%}
 .pool-item{flex-direction:column}
 .pool-item-head{display:flex;align-items:center;gap:10px}
+.pool-item-meta-row,.pool-meta-row{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .pool-item-logo{width:26px;height:26px;object-fit:contain;flex:0 0 26px}
+.pool-winner{color:#ffe58a;white-space:nowrap}
 .badge{
   background:linear-gradient(90deg,#1f4fd0,#7237f3);
   border:1px solid #6f8cf0;

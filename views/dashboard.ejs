@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>Dashboard · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css'/></head><body>
+<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>Dashboard · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260305winner1'/></head><body>
 <header class='top'><div class='brand'><img class='brand-logo' src='/img/logo.png' alt='lakiniela logo'/></div><div class='inline'><a href='/account/password'><button type='button'>Password</button></a><% if (isAdmin) { %><a href='/admin/users'><button type='button'>Admin</button></a><% } %><form method='post' action='/logout'><button>Logout</button></form></div></header>
 <main class='grid'>
 <section class='card'><h2>Welcome, <%= user.name %></h2>
@@ -11,7 +11,12 @@
 <% pools.forEach(p=> { %>
 <a class='pool-item' href='/pools/<%= p.id %>'>
   <div class='pool-item-head'><img class='pool-item-logo' src='/img/logo.png' alt='pool logo'/><strong><%= p.name %></strong></div>
-  <span>Code: <%= p.code %> · <%= p.members %> members</span>
+  <div class='pool-meta-row'>
+    <span>Code: <%= p.code %> · <%= p.members %> members</span>
+    <% if (p.pool_finished && p.winner_name) { %>
+      <strong class='pool-winner'><%= p.winner_name %> 👑</strong>
+    <% } %>
+  </div>
 </a>
 <% }) %>
 <% if (!pools.length) { %><p class='muted'>No pools yet. Create one or join with a code.</p><% } %>
