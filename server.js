@@ -12,8 +12,12 @@ const isProd = process.env.NODE_ENV === 'production';
 app.set('trust proxy', 1);
 
 const sessionSecret = process.env.SESSION_SECRET;
+const adminKey = process.env.ADMIN_KEY;
 if (isProd && (!sessionSecret || sessionSecret.length < 24)) {
   throw new Error('SESSION_SECRET is required (min 24 chars) in production.');
+}
+if (isProd && (!adminKey || adminKey.length < 16)) {
+  throw new Error('ADMIN_KEY is required (min 16 chars) in production.');
 }
 
 app.set('view engine', 'ejs');
@@ -585,7 +589,8 @@ app.post('/pools/:id/predictions/:matchId', auth, (req, res) => {
 
 // admin endpoint for manual final score entry
 app.post('/admin/matches/:id/final', (req, res) => {
-  if (req.headers['x-admin-key'] !== (process.env.ADMIN_KEY || 'dev-admin')) return res.status(401).json({ ok: false });
+  const expectedAdminKey = adminKey || 'dev-admin';
+  if (req.headers['x-admin-key'] !== expectedAdminKey) return res.status(401).json({ ok: false });
   const home = Number(req.body.home_score);
   const away = Number(req.body.away_score);
   db.prepare("UPDATE matches SET home_score = ?, away_score = ?, status = 'finished' WHERE id = ?").run(home, away, req.params.id);
@@ -594,7 +599,8 @@ app.post('/admin/matches/:id/final', (req, res) => {
 });
 
 app.post('/admin/sync', async (req, res) => {
-  if (req.headers['x-admin-key'] !== (process.env.ADMIN_KEY || 'dev-admin')) return res.status(401).json({ ok: false });
+  const expectedAdminKey = adminKey || 'dev-admin';
+  if (req.headers['x-admin-key'] !== expectedAdminKey) return res.status(401).json({ ok: false });
   try {
     const result = await syncLigaMxScores();
     return res.json(result);
