@@ -1,6 +1,21 @@
-<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260304b'/></head><body>
+<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260305points1'/></head><body>
 <header class='top'><a href='/dashboard'>← Dashboard</a><div class='brand'><img class='brand-logo' src='/img/logo.png' alt='lakiniela logo'/><h1><%= pool.name %></h1></div><span class='badge'>Code: <%= pool.code %></span></header>
-<main class='grid two'>
+<main class='grid'>
+<section class='card'>
+  <h3>Points Dashboard</h3>
+  <div class='points-dashboard'>
+    <% standings.forEach((s, i) => { %>
+      <div class='points-user-card <%= i === 0 ? "points-user-card-top" : "" %>'>
+        <div class='points-user-name'>
+          <a href='/pools/<%= pool.id %>/users/<%= s.id %>/picks'><%= s.name %></a>
+        </div>
+        <div class='points-user-total'><%= s.points %> pts<% if (poolFinished && i === 0) { %> <span aria-label='Winner'>👑</span><% } %></div>
+      </div>
+    <% }) %>
+  </div>
+</section>
+
+<div class='grid two'>
 <section class='card'><h3>Standings</h3>
 <ol class='standings'>
 <% standings.forEach((s, i) => { %>
@@ -59,6 +74,7 @@
 </div>
 <% }) %>
 </div></section>
+</div>
 </main>
 <script>
 document.querySelectorAll('.prediction .save').forEach(btn=>{btn.onclick=async()=>{const row=btn.closest('.prediction');const id=row.dataset.match;const ph=row.querySelector('.ph').value;const pa=row.querySelector('.pa').value;const r=await fetch(`/pools/<%= pool.id %>/predictions/${id}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pred_home:ph,pred_away:pa})});if(r.ok){btn.textContent='Saved';setTimeout(()=>btn.textContent='Save',900);}else{const j=await r.json().catch(()=>({}));alert(j.error||'Prediction is locked.');}}})

@@ -139,6 +139,12 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .score-sep{font-weight:800;font-size:1.5rem;opacity:.9;padding-bottom:0}
 .fixture-meta{display:block;margin-top:6px;color:var(--muted)}
 
+.points-dashboard{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.points-user-card{border:1px solid #2a438f;border-radius:12px;padding:10px;background:linear-gradient(180deg,#0d1840,#0b1537)}
+.points-user-card-top{border-color:rgba(255,215,0,.55);background:linear-gradient(90deg,rgba(255,215,0,.18),rgba(255,215,0,.04))}
+.points-user-name{font-weight:700;margin-bottom:6px}
+.points-user-total{font-size:1.05rem;color:#dfe8ff}
+
 .standings{padding-left:18px}
 .standings li{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #274080}
 .standings li.standing-top{
