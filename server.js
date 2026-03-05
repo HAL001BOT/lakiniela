@@ -462,10 +462,11 @@ app.get('/pools/:id', auth, (req, res) => {
   const preds = db.prepare('SELECT * FROM predictions WHERE pool_id = ? AND user_id = ?').all(pool.id, req.session.user.id);
   const predByMatch = new Map(preds.map((p) => [p.match_id, p]));
   const standings = poolStandings(pool.id);
+  const poolFinished = matches.length > 0 && matches.every((m) => m.status === 'finished');
   const proto = req.get('x-forwarded-proto') || req.protocol;
   const inviteLink = `${proto}://${req.get('host')}/invite/${pool.code}`;
 
-  res.render('pool', { pool, matches, predByMatch, standings, nowMs: Date.now(), inviteLink });
+  res.render('pool', { pool, matches, predByMatch, standings, poolFinished, nowMs: Date.now(), inviteLink });
 });
 
 app.get('/pools/:id/users/:userId/picks', auth, (req, res) => {
