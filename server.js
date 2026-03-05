@@ -360,12 +360,29 @@ app.get('/dashboard', auth, (req, res) => {
     };
   });
 
+  const pointsDashboard = db.prepare(`
+    SELECT u.id, u.name, COALESCE(SUM(pr.points), 0) AS points
+    FROM pool_members mine
+    JOIN pool_members pm ON pm.pool_id = mine.pool_id
+    JOIN users u ON u.id = pm.user_id
+    LEFT JOIN predictions pr ON pr.pool_id = pm.pool_id AND pr.user_id = pm.user_id
+    WHERE mine.user_id = ?
+    GROUP BY u.id, u.name
+    ORDER BY points DESC, u.name ASC
+  `).all(req.session.user.id);
+
   const matchdayView = getUpcomingUniqueScheduledMatches();
   const nextMatches = matchdayView.matches.map((m) => ({
     ...m,
     kickoff_local: formatCentral(m.kickoff_at),
   }));
-  res.render('dashboard', { pools, nextMatches, jornadaNumber: matchdayView.jornadaNumber, isAdmin: req.session.user.role === 'admin' });
+  res.render('dashboard', {
+    pools,
+    pointsDashboard,
+    nextMatches,
+    jornadaNumber: matchdayView.jornadaNumber,
+    isAdmin: req.session.user.role === 'admin',
+  });
 });
 
 app.use('/admin', adminLimiter);

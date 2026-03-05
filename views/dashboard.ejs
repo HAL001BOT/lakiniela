@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>Dashboard · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260305winner1'/></head><body>
+<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>Dashboard · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260305mainpoints1'/></head><body>
 <header class='top'><div class='brand'><img class='brand-logo' src='/img/logo.png' alt='lakiniela logo'/></div><div class='inline'><a href='/account/password'><button type='button'>Password</button></a><% if (isAdmin) { %><a href='/admin/users'><button type='button'>Admin</button></a><% } %><form method='post' action='/logout'><button>Logout</button></form></div></header>
 <main class='grid'>
 <section class='card'><h2>Welcome, <%= user.name %></h2>
@@ -6,6 +6,17 @@
 <form method='post' action='/pools/create' class='inline'><input name='name' placeholder='New pool name'/><button>Create pool</button></form>
 <form method='post' action='/pools/join' class='inline'><input name='code' placeholder='Join code (e.g. A1B2C3)'/><button>Join</button></form>
 </div></section>
+<section class='card'><h3>Total Points Dashboard</h3>
+<div class='points-dashboard'>
+<% pointsDashboard.forEach((u, i) => { %>
+  <div class='points-user-card <%= i === 0 ? "points-user-card-top" : "" %>'>
+    <div class='points-user-name'><%= u.name %></div>
+    <div class='points-user-total'><%= u.points %> pts<% if (i === 0) { %> 👑<% } %></div>
+  </div>
+<% }) %>
+</div>
+<% if (!pointsDashboard.length) { %><p class='muted'>No points yet.</p><% } %>
+</section>
 <section class='card'><h3>Your Pools</h3>
 <div class='list'>
 <% pools.forEach(p=> { %>
