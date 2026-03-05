@@ -45,7 +45,9 @@ app.use(
 );
 
 app.use((req, res, next) => {
+  if (!req.session.csrfToken) req.session.csrfToken = crypto.randomBytes(24).toString('hex');
   res.locals.user = req.session.user || null;
+  res.locals.csrfToken = req.session.csrfToken;
   next();
 });
 
@@ -68,29 +70,21 @@ function createIpRateLimiter({ windowMs, max, message }) {
 const loginLimiter = createIpRateLimiter({ windowMs: 10 * 60 * 1000, max: 30, message: 'Too many login attempts. Try again soon.' });
 const adminLimiter = createIpRateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Too many admin requests.' });
 
-function sameOriginPostGuard(req, res, next) {
+function csrfPostGuard(req, res, next) {
   if (req.method !== 'POST') return next();
   const path = req.path || '';
+  // API-key protected admin endpoints are allowed without session CSRF token.
   if (path.startsWith('/admin/sync') || path.startsWith('/admin/matches/')) return next();
 
-  const host = req.get('host');
-  const origin = req.get('origin');
-  const referer = req.get('referer');
-
-  const allowed = (value) => {
-    if (!value) return false;
-    try {
-      return new URL(value).host === host;
-    } catch {
-      return false;
-    }
-  };
-
-  if (allowed(origin) || allowed(referer)) return next();
-  return res.status(403).send('Blocked by CSRF protection.');
+  const providedToken = req.body?._csrf || req.get('x-csrf-token');
+  const expectedToken = req.session?.csrfToken;
+  if (!expectedToken || !providedToken || providedToken !== expectedToken) {
+    return res.status(403).send('Blocked by CSRF protection.');
+  }
+  return next();
 }
 
-app.use(sameOriginPostGuard);
+app.use(csrfPostGuard);
 
 function auth(req, res, next) {
   if (!req.session.user) return res.redirect('/login');

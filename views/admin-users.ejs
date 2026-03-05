@@ -9,6 +9,7 @@
     <span><%= u.email %> · <%= u.pool_count %> pools · <%= u.role %></span>
     <div class='inline'>
       <form method='post' action='/admin/users/<%= u.id %>/role' class='inline'>
+        <input type='hidden' name='_csrf' value='<%= csrfToken %>' />
         <select name='role'>
           <option value='user' <%= u.role === 'user' ? 'selected' : '' %>>user</option>
           <option value='admin' <%= u.role === 'admin' ? 'selected' : '' %>>admin</option>
@@ -17,10 +18,12 @@
       </form>
       <% if (u.id !== me.id) { %>
       <form method='post' action='/admin/users/<%= u.id %>/reset-password' class='inline'>
+        <input type='hidden' name='_csrf' value='<%= csrfToken %>' />
         <input name='new_password' type='text' placeholder='New password (min 8)' required />
         <button style='background:#0e7490'>Reset password</button>
       </form>
       <form method='post' action='/admin/users/<%= u.id %>/delete' onsubmit="return confirm('Delete this user?')">
+        <input type='hidden' name='_csrf' value='<%= csrfToken %>' />
         <button style='background:#b4233c'>Delete</button>
       </form>
       <% } %>
@@ -34,6 +37,7 @@
             <span><strong><%= mp.pool_name %></strong> · <small><%= mp.pool_code %></small></span>
             <% if (u.id !== me.id) { %>
             <form method='post' action='/admin/pools/<%= mp.pool_id %>/users/<%= u.id %>/remove' onsubmit="return confirm('Remove this user from this pool?')">
+              <input type='hidden' name='_csrf' value='<%= csrfToken %>' />
               <button style='background:#b45309'>Remove from pool</button>
             </form>
             <% } %>

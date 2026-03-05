@@ -2,5 +2,6 @@
 <div class='card auth-card'><img class='brand-logo big' src='/img/logo.png' alt='lakiniela logo'/>
 <% if (error) { %><p class='error'><%= error %></p><% } %>
 <form method='post' action='/login'>
+<input type='hidden' name='_csrf' value='<%= csrfToken %>'/>
 <input name='username' placeholder='Username'/><input type='password' name='password' placeholder='Password'/><button>Login</button>
 </form><a href='/register'>Create account</a></div></body></html>
