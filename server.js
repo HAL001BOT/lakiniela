@@ -498,7 +498,11 @@ app.get(['/invite/:code', '/join/:code'], (req, res) => {
 
   if (!req.session.user) {
     req.session.pendingInviteCode = inviteCode;
-    return res.redirect('/login');
+    const proto = req.get('x-forwarded-proto') || req.protocol;
+    const baseUrl = `${proto}://${req.get('host')}`;
+    const inviteUrl = `${baseUrl}/invite/${inviteCode}`;
+    const ogImage = `${baseUrl}/img/logo.png`;
+    return res.render('invite-public', { pool, inviteUrl, ogImage });
   }
 
   db.prepare('INSERT OR IGNORE INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(pool.id, req.session.user.id);

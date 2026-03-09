@@ -1,0 +1,28 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset='utf-8'/>
+  <meta name='viewport' content='width=device-width,initial-scale=1'/>
+  <title><%= pool.name %> · Join Pool</title>
+  <meta property='og:title' content='Join pool: <%= pool.name %>' />
+  <meta property='og:description' content='You are invited to join "<%= pool.name %>" on LaKiniela.' />
+  <meta property='og:type' content='website' />
+  <meta property='og:url' content='<%= inviteUrl %>' />
+  <meta property='og:image' content='<%= ogImage %>' />
+  <meta name='twitter:card' content='summary_large_image' />
+  <meta name='twitter:title' content='Join pool: <%= pool.name %>' />
+  <meta name='twitter:description' content='You are invited to join "<%= pool.name %>" on LaKiniela.' />
+  <meta name='twitter:image' content='<%= ogImage %>' />
+  <link rel='icon' href='/img/logo.png'/>
+  <link rel='stylesheet' href='/style.css?v=20260309invite1'/>
+</head>
+<body class='auth'>
+  <div class='card auth-card'>
+    <img class='brand-logo big' src='/img/logo.png' alt='lakiniela logo'/>
+    <h1><%= pool.name %></h1>
+    <p>You're invited to join this pool.</p>
+    <a href='/login'><button type='button'>Login to join</button></a>
+    <a href='/register'><button type='button'>Create account</button></a>
+  </div>
+</body>
+</html>
