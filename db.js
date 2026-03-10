@@ -78,6 +78,35 @@ CREATE TABLE IF NOT EXISTS pool_matches (
   FOREIGN KEY(pool_id) REFERENCES pools(id),
   FOREIGN KEY(match_id) REFERENCES matches(id)
 );
+
+CREATE TABLE IF NOT EXISTS sessions_store (
+  sid TEXT PRIMARY KEY,
+  sess TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  scope TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  count INTEGER NOT NULL,
+  reset_at INTEGER NOT NULL,
+  PRIMARY KEY (scope, subject)
+);
+
+CREATE TABLE IF NOT EXISTS audit_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  event_type TEXT NOT NULL,
+  actor_user_id INTEGER,
+  ip TEXT,
+  path TEXT,
+  method TEXT,
+  ok INTEGER DEFAULT 1,
+  detail TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_at);
 `);
 
 try { db.exec('ALTER TABLE matches ADD COLUMN home_logo TEXT'); } catch {}

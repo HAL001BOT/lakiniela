@@ -35,7 +35,7 @@
 <div class='score-inputs'>
   <div class='score-col'>
     <div class='score-input-wrap'>
-      <img class='team-logo score-box-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/>
+      <img class='team-logo score-box-logo hide-on-error' src='<%= m.home_logo || "" %>' alt=''/>
       <input type='number' min='0' class='ph' value='<%= p ? p.pred_home : "" %>' <%= locked ? 'disabled' : '' %> />
     </div>
     <label class='team-label team-label-below'><span><%= m.home_team %></span></label>
@@ -43,7 +43,7 @@
   <div class='score-sep'>-</div>
   <div class='score-col'>
     <div class='score-input-wrap score-input-wrap-right'>
-      <img class='team-logo score-box-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/>
+      <img class='team-logo score-box-logo hide-on-error' src='<%= m.away_logo || "" %>' alt=''/>
       <input type='number' min='0' class='pa' value='<%= p ? p.pred_away : "" %>' <%= locked ? 'disabled' : '' %> />
     </div>
     <label class='team-label team-label-right team-label-below'><span><%= m.away_team %></span></label>
@@ -60,6 +60,7 @@
 <% }) %>
 </div></section>
 </main>
+<script src='/app.js' defer></script>
 <script nonce="<%= cspNonce %>">
 const csrfToken = '<%= csrfToken %>';
 document.querySelectorAll('.prediction .save').forEach(btn=>{btn.onclick=async()=>{const row=btn.closest('.prediction');const id=row.dataset.match;const ph=row.querySelector('.ph').value;const pa=row.querySelector('.pa').value;const r=await fetch(`/pools/<%= pool.id %>/predictions/${id}`,{method:'POST',headers:{'Content-Type':'application/json','x-csrf-token':csrfToken},body:JSON.stringify({pred_home:ph,pred_away:pa})});if(r.ok){btn.textContent='Saved';setTimeout(()=>btn.textContent='Save',900);}else{const j=await r.json().catch(()=>({}));alert(j.error||'Prediction is locked.');}}})

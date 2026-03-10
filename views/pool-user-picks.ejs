@@ -6,7 +6,7 @@
   <div class='list'>
     <% rows.forEach(m => { %>
       <div class='match-line'>
-        <span class='teams'><img class='team-logo' src='<%= m.home_logo || "" %>' alt='' onerror="this.style.display='none'"/> <%= m.home_team %> vs <%= m.away_team %> <img class='team-logo' src='<%= m.away_logo || "" %>' alt='' onerror="this.style.display='none'"/></span>
+        <span class='teams'><img class='team-logo hide-on-error' src='<%= m.home_logo || "" %>' alt=''/> <%= m.home_team %> vs <%= m.away_team %> <img class='team-logo hide-on-error' src='<%= m.away_logo || "" %>' alt=''/></span>
         <small>
           <% if (m.pick) { %>
             Pick: <strong><%= m.pick.pred_home %>-<%= m.pick.pred_away %></strong>
@@ -27,4 +27,5 @@
   </div>
 </section>
 </main>
+<script src='/app.js' defer></script>
 </body></html>

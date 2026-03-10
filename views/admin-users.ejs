@@ -22,7 +22,7 @@
         <input name='new_password' type='text' placeholder='New password (min 8)' required />
         <button style='background:#0e7490'>Reset password</button>
       </form>
-      <form method='post' action='/admin/users/<%= u.id %>/delete' onsubmit="return confirm('Delete this user?')">
+      <form method='post' action='/admin/users/<%= u.id %>/delete' class='confirmable' data-confirm='Delete this user?'>
         <input type='hidden' name='_csrf' value='<%= csrfToken %>' />
         <button style='background:#b4233c'>Delete</button>
       </form>
@@ -36,7 +36,7 @@
           <div class='match-line'>
             <span><strong><%= mp.pool_name %></strong> · <small><%= mp.pool_code %></small></span>
             <% if (u.id !== me.id) { %>
-            <form method='post' action='/admin/pools/<%= mp.pool_id %>/users/<%= u.id %>/remove' onsubmit="return confirm('Remove this user from this pool?')">
+            <form method='post' action='/admin/pools/<%= mp.pool_id %>/users/<%= u.id %>/remove' class='confirmable' data-confirm='Remove this user from this pool?'>
               <input type='hidden' name='_csrf' value='<%= csrfToken %>' />
               <button style='background:#b45309'>Remove from pool</button>
             </form>
@@ -50,4 +50,5 @@
 </div>
 </section>
 </main>
+<script src='/app.js' defer></script>
 </body></html>

@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const cron = require('node-cron');
 const helmet = require('helmet');
+const { z } = require('zod');
 const db = require('./db');
 const { recalcPointsForMatch, syncLigaMxScores } = require('./services/updater');
 
@@ -21,6 +22,75 @@ if (isProd && (!adminKey || adminKey.length < 16)) {
   throw new Error('ADMIN_KEY is required (min 16 chars) in production.');
 }
 
+const adminAllowlist = new Set(
+  String(process.env.ADMIN_ALLOWLIST || '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean)
+);
+
+class SqliteSessionStore extends session.Store {
+  get(sid, cb) {
+    try {
+      const row = db.prepare('SELECT sess, expires_at FROM sessions_store WHERE sid = ?').get(sid);
+      if (!row) return cb(null, null);
+      if (row.expires_at <= Date.now()) {
+        db.prepare('DELETE FROM sessions_store WHERE sid = ?').run(sid);
+        return cb(null, null);
+      }
+      return cb(null, JSON.parse(row.sess));
+    } catch (err) {
+      return cb(err);
+    }
+  }
+
+  set(sid, sess, cb) {
+    try {
+      const expiresAt = sess?.cookie?.expires ? new Date(sess.cookie.expires).getTime() : Date.now() + (7 * 24 * 60 * 60 * 1000);
+      db.prepare(`
+        INSERT INTO sessions_store (sid, sess, expires_at, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(sid) DO UPDATE SET sess=excluded.sess, expires_at=excluded.expires_at, updated_at=excluded.updated_at
+      `).run(sid, JSON.stringify(sess), expiresAt, Date.now());
+      cb && cb(null);
+    } catch (err) {
+      cb && cb(err);
+    }
+  }
+
+  destroy(sid, cb) {
+    try {
+      db.prepare('DELETE FROM sessions_store WHERE sid = ?').run(sid);
+      cb && cb(null);
+    } catch (err) {
+      cb && cb(err);
+    }
+  }
+
+  touch(sid, sess, cb) {
+    try {
+      const expiresAt = sess?.cookie?.expires ? new Date(sess.cookie.expires).getTime() : Date.now() + (7 * 24 * 60 * 60 * 1000);
+      db.prepare('UPDATE sessions_store SET expires_at = ?, updated_at = ? WHERE sid = ?').run(expiresAt, Date.now(), sid);
+      cb && cb(null);
+    } catch (err) {
+      cb && cb(err);
+    }
+  }
+}
+
+const sessionStore = new SqliteSessionStore();
+
+function logEvent(eventType, detail = {}, req = null, ok = true) {
+  const payload = { ...detail };
+  const actorUserId = req?.session?.user?.id || null;
+  const ip = req?.ip || req?.socket?.remoteAddress || null;
+  const path = req?.path || null;
+  const method = req?.method || null;
+  db.prepare(`INSERT INTO audit_events (event_type, actor_user_id, ip, path, method, ok, detail) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .run(eventType, actorUserId, ip, path, method, ok ? 1 : 0, JSON.stringify(payload));
+  console.log(JSON.stringify({ ts: new Date().toISOString(), eventType, actorUserId, ip, path, method, ok, ...payload }));
+}
+
 app.set('view engine', 'ejs');
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -35,7 +105,6 @@ app.use(
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'", (req, res) => `'nonce-${res.locals.cspNonce}'`],
-        scriptSrcAttr: ["'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:', 'https:'],
         connectSrc: ["'self'"],
@@ -50,6 +119,7 @@ app.use(
 );
 app.use(
   session({
+    store: sessionStore,
     secret: sessionSecret || crypto.randomBytes(32).toString('hex'),
     resave: false,
     saveUninitialized: false,
@@ -69,24 +139,29 @@ app.use((req, res, next) => {
   next();
 });
 
-function createIpRateLimiter({ windowMs, max, message }) {
-  const hits = new Map();
+function createIpRateLimiter({ scope, windowMs, max, message }) {
   return (req, res, next) => {
     const ip = req.ip || req.socket.remoteAddress || 'unknown';
     const now = Date.now();
-    const row = hits.get(ip);
-    if (!row || now > row.resetAt) {
-      hits.set(ip, { count: 1, resetAt: now + windowMs });
+    const row = db.prepare('SELECT count, reset_at FROM rate_limits WHERE scope = ? AND subject = ?').get(scope, ip);
+    if (!row || now > row.reset_at) {
+      db.prepare(`
+        INSERT INTO rate_limits (scope, subject, count, reset_at)
+        VALUES (?, ?, 1, ?)
+        ON CONFLICT(scope, subject) DO UPDATE SET count=1, reset_at=excluded.reset_at
+      `).run(scope, ip, now + windowMs);
       return next();
     }
-    row.count += 1;
-    if (row.count > max) return res.status(429).send(message || 'Too many requests');
+
+    const nextCount = Number(row.count || 0) + 1;
+    db.prepare('UPDATE rate_limits SET count = ? WHERE scope = ? AND subject = ?').run(nextCount, scope, ip);
+    if (nextCount > max) return res.status(429).send(message || 'Too many requests');
     return next();
   };
 }
 
-const loginLimiter = createIpRateLimiter({ windowMs: 10 * 60 * 1000, max: 30, message: 'Too many login attempts. Try again soon.' });
-const adminLimiter = createIpRateLimiter({ windowMs: 60 * 1000, max: 120, message: 'Too many admin requests.' });
+const loginLimiter = createIpRateLimiter({ scope: 'login', windowMs: 10 * 60 * 1000, max: 30, message: 'Too many login attempts. Try again soon.' });
+const adminLimiter = createIpRateLimiter({ scope: 'admin', windowMs: 60 * 1000, max: 120, message: 'Too many admin requests.' });
 
 function csrfPostGuard(req, res, next) {
   if (req.method !== 'POST') return next();
@@ -117,6 +192,37 @@ function admin(req, res, next) {
 
 function code() {
   return crypto.randomBytes(3).toString('hex').toUpperCase();
+}
+
+const registerSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  username: z.string().trim().toLowerCase().regex(/^[a-z0-9_]{3,30}$/),
+  email: z.string().trim().email().max(160),
+  password: z.string().min(8).max(128),
+});
+const loginSchema = z.object({ username: z.string().trim().min(1), password: z.string().min(1) });
+const createPoolSchema = z.object({ name: z.string().trim().min(1).max(80) });
+const joinPoolSchema = z.object({ code: z.string().trim().min(4).max(16) });
+const predictionSchema = z.object({ pred_home: z.coerce.number().int().min(0).max(30), pred_away: z.coerce.number().int().min(0).max(30) });
+
+function parseBody(schema, raw) {
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) return null;
+  return parsed.data;
+}
+
+function isAllowedAdminSource(req) {
+  if (!adminAllowlist.size) return true;
+  const ip = req.ip || req.socket?.remoteAddress || '';
+  return adminAllowlist.has(ip);
+}
+
+function isAdminKeyValid(headerValue = '') {
+  const expected = adminKey || 'dev-admin';
+  const a = Buffer.from(String(headerValue));
+  const b = Buffer.from(String(expected));
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 
 function consumePendingInvite(req, res) {
@@ -283,27 +389,33 @@ app.get('/', (req, res) => (req.session.user ? res.redirect('/dashboard') : res.
 
 app.get('/register', (_req, res) => res.render('register', { error: null }));
 app.post('/register', (req, res) => {
-  const { name, username, email, password } = req.body;
-  if (!name || !username || !email || !password) return res.render('register', { error: 'Fill all fields.' });
+  const input = parseBody(registerSchema, req.body);
+  if (!input) return res.render('register', { error: 'Invalid fields. Check username/email/password format.' });
   try {
-    const uname = String(username).trim().toLowerCase();
-    if (!/^[a-z0-9_]{3,24}$/.test(uname)) return res.render('register', { error: 'Username must be 3-24 chars (letters, numbers, underscore).' });
-    const hash = bcrypt.hashSync(password, 10);
+    const hash = bcrypt.hashSync(input.password, 10);
     const info = db.prepare('INSERT INTO users (name, username, email, password_hash, role) VALUES (?, ?, ?, ?, ?)')
-      .run(name.trim(), uname, email.trim().toLowerCase(), hash, 'user');
-    req.session.user = { id: info.lastInsertRowid, name: name.trim(), username: uname, email: email.trim().toLowerCase(), role: 'user' };
+      .run(input.name, input.username, input.email.toLowerCase(), hash, 'user');
+    req.session.user = { id: info.lastInsertRowid, name: input.name, username: input.username, email: input.email.toLowerCase(), role: 'user' };
+    logEvent('auth.register.success', { username: input.username }, req, true);
     if (consumePendingInvite(req, res)) return;
     res.redirect('/dashboard');
   } catch {
+    logEvent('auth.register.failed', { username: input.username }, req, false);
     res.render('register', { error: 'Username or email already in use.' });
   }
 });
 
 app.get('/login', (_req, res) => res.render('login', { error: null }));
 app.post('/login', loginLimiter, (req, res) => {
-  const user = db.prepare('SELECT * FROM users WHERE username = ?').get((req.body.username || '').trim().toLowerCase());
-  if (!user || !bcrypt.compareSync(req.body.password || '', user.password_hash)) return res.render('login', { error: 'Invalid credentials.' });
+  const input = parseBody(loginSchema, req.body);
+  if (!input) return res.render('login', { error: 'Invalid credentials.' });
+  const user = db.prepare('SELECT * FROM users WHERE username = ?').get(input.username.toLowerCase());
+  if (!user || !bcrypt.compareSync(input.password, user.password_hash)) {
+    logEvent('auth.login.failed', { username: input.username.toLowerCase() }, req, false);
+    return res.render('login', { error: 'Invalid credentials.' });
+  }
   req.session.user = { id: user.id, name: user.name, username: user.username, email: user.email, role: user.role || 'user' };
+  logEvent('auth.login.success', { username: user.username }, req, true);
   if (consumePendingInvite(req, res)) return;
   res.redirect('/dashboard');
 });
@@ -433,6 +545,7 @@ app.post('/admin/users/:id/role', admin, (req, res) => {
   if (!Number.isInteger(id)) return res.redirect('/admin/users');
   db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
   if (req.session.user.id === id) req.session.user.role = role;
+  logEvent('admin.user.role', { targetUserId: id, role }, req, true);
   res.redirect('/admin/users');
 });
 
@@ -447,6 +560,7 @@ app.post('/admin/users/:id/delete', admin, (req, res) => {
     db.prepare('DELETE FROM users WHERE id = ?').run(id);
   });
   tx();
+  logEvent('admin.user.delete', { targetUserId: id }, req, true);
   res.redirect('/admin/users');
 });
 
@@ -456,6 +570,7 @@ app.post('/admin/users/:id/reset-password', admin, (req, res) => {
   if (!Number.isInteger(id) || newPassword.length < 8) return res.redirect('/admin/users');
   const hash = bcrypt.hashSync(newPassword, 10);
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, id);
+  logEvent('admin.user.reset_password', { targetUserId: id }, req, true);
   res.redirect('/admin/users');
 });
 
@@ -466,28 +581,33 @@ app.post('/admin/pools/:poolId/users/:userId/remove', admin, (req, res) => {
 
   db.prepare('DELETE FROM predictions WHERE pool_id = ? AND user_id = ?').run(poolId, userId);
   db.prepare('DELETE FROM pool_members WHERE pool_id = ? AND user_id = ?').run(poolId, userId);
+  logEvent('admin.pool.remove_member', { poolId, userId }, req, true);
   res.redirect('/admin/users');
 });
 
 app.post('/pools/create', auth, (req, res) => {
-  const name = String(req.body.name || '').trim();
-  if (!name) return res.redirect('/dashboard');
+  const input = parseBody(createPoolSchema, req.body);
+  if (!input) return res.redirect('/dashboard');
   const poolCode = code();
   const snapshotMatches = getUpcomingUniqueScheduledMatches().matches;
 
   const tx = db.transaction(() => {
-    const info = db.prepare('INSERT INTO pools (name, code, owner_id) VALUES (?, ?, ?)').run(name, poolCode, req.session.user.id);
+    const info = db.prepare('INSERT INTO pools (name, code, owner_id) VALUES (?, ?, ?)').run(input.name, poolCode, req.session.user.id);
     db.prepare('INSERT INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(info.lastInsertRowid, req.session.user.id);
     lockPoolMatches(info.lastInsertRowid, snapshotMatches);
   });
   tx();
+  logEvent('pool.create', { poolName: input.name, poolCode }, req, true);
   res.redirect('/dashboard');
 });
 
 app.post('/pools/join', auth, (req, res) => {
-  const pool = db.prepare('SELECT * FROM pools WHERE code = ?').get(String(req.body.code || '').trim().toUpperCase());
+  const input = parseBody(joinPoolSchema, req.body);
+  if (!input) return res.redirect('/dashboard');
+  const pool = db.prepare('SELECT * FROM pools WHERE code = ?').get(input.code.trim().toUpperCase());
   if (!pool) return res.redirect('/dashboard');
   db.prepare('INSERT OR IGNORE INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(pool.id, req.session.user.id);
+  logEvent('pool.join', { poolId: pool.id, poolCode: pool.code }, req, true);
   res.redirect(`/pools/${pool.id}`);
 });
 
@@ -573,12 +693,12 @@ app.get('/pools/:id/users/:userId/picks', auth, (req, res) => {
 app.post('/pools/:id/predictions/:matchId', auth, (req, res) => {
   const poolId = Number(req.params.id);
   const matchId = Number(req.params.matchId);
-  const predHome = Number(req.body.pred_home);
-  const predAway = Number(req.body.pred_away);
-
-  if (!Number.isInteger(predHome) || !Number.isInteger(predAway) || predHome < 0 || predAway < 0) {
+  const input = parseBody(predictionSchema, req.body);
+  if (!input) {
     return res.status(400).json({ ok: false, error: 'Invalid score.' });
   }
+  const predHome = input.pred_home;
+  const predAway = input.pred_away;
 
   const member = db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = ?').get(poolId, req.session.user.id);
   const poolMatch = db.prepare('SELECT 1 FROM pool_matches WHERE pool_id = ? AND match_id = ?').get(poolId, matchId);
@@ -605,22 +725,32 @@ app.post('/pools/:id/predictions/:matchId', auth, (req, res) => {
 
 // admin endpoint for manual final score entry
 app.post('/admin/matches/:id/final', (req, res) => {
-  const expectedAdminKey = adminKey || 'dev-admin';
-  if (req.headers['x-admin-key'] !== expectedAdminKey) return res.status(401).json({ ok: false });
+  if (!isAllowedAdminSource(req) || !isAdminKeyValid(req.headers['x-admin-key'])) {
+    logEvent('admin.final_score.denied', { matchId: Number(req.params.id) }, req, false);
+    return res.status(401).json({ ok: false });
+  }
   const home = Number(req.body.home_score);
   const away = Number(req.body.away_score);
+  if (!Number.isInteger(home) || !Number.isInteger(away) || home < 0 || away < 0) {
+    return res.status(400).json({ ok: false, error: 'Invalid score.' });
+  }
   db.prepare("UPDATE matches SET home_score = ?, away_score = ?, status = 'finished' WHERE id = ?").run(home, away, req.params.id);
   recalcPointsForMatch(Number(req.params.id));
+  logEvent('admin.final_score.ok', { matchId: Number(req.params.id), home, away }, req, true);
   res.json({ ok: true });
 });
 
 app.post('/admin/sync', async (req, res) => {
-  const expectedAdminKey = adminKey || 'dev-admin';
-  if (req.headers['x-admin-key'] !== expectedAdminKey) return res.status(401).json({ ok: false });
+  if (!isAllowedAdminSource(req) || !isAdminKeyValid(req.headers['x-admin-key'])) {
+    logEvent('admin.sync.denied', {}, req, false);
+    return res.status(401).json({ ok: false });
+  }
   try {
     const result = await syncLigaMxScores();
+    logEvent('admin.sync.ok', { updated: result?.updated || 0 }, req, true);
     return res.json(result);
   } catch (e) {
+    logEvent('admin.sync.failed', { error: e.message }, req, false);
     return res.status(500).json({ ok: false, error: e.message });
   }
 });
@@ -629,18 +759,24 @@ cron.schedule('*/5 * * * *', async () => {
   try {
     if (!shouldRunFrequentSyncNow()) return;
     const result = await syncLigaMxScores();
-    console.log('Auto-sync (5m):', result);
+    logEvent('sync.auto.ok', { updated: result?.updated || 0 }, null, true);
   } catch (e) {
-    console.error('Score sync failed:', e.message);
+    logEvent('sync.auto.failed', { error: e.message }, null, false);
   }
+});
+
+cron.schedule('*/15 * * * *', () => {
+  const now = Date.now();
+  db.prepare('DELETE FROM rate_limits WHERE reset_at < ?').run(now - 5 * 60 * 1000);
+  db.prepare('DELETE FROM sessions_store WHERE expires_at < ?').run(now);
 });
 
 (async () => {
   try {
     const result = await syncLigaMxScores();
-    console.log('Startup sync:', result);
+    logEvent('sync.startup.ok', { updated: result?.updated || 0 }, null, true);
   } catch (e) {
-    console.warn('Startup sync skipped:', e.message);
+    logEvent('sync.startup.failed', { error: e.message }, null, false);
   }
 })();
 
