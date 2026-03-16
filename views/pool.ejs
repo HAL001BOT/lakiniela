@@ -1,8 +1,12 @@
-<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260305points1'/></head><body>
+<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260316share1'/></head><body>
 <header class='top'><a href='/dashboard'>← Dashboard</a><div class='brand'><img class='brand-logo' src='/img/logo.png' alt='lakiniela logo'/><h1><%= pool.name %></h1></div><span class='badge'>Code: <%= pool.code %></span></header>
 <main class='grid two'>
-<section class='card'><h3>Standings</h3>
-<ol class='standings'>
+<section class='card' id='standings-card'>
+<div class='standings-head'>
+  <h3>Standings</h3>
+  <button type='button' id='share-standings'>Share snapshot</button>
+</div>
+<ol class='standings' id='standings-list'>
 <% standings.forEach((s, i) => { %>
 <li class='<%= i === 0 ? "standing-top" : "" %>' <%= i === 0 ? "style='background:linear-gradient(90deg,rgba(255,215,0,.18),rgba(255,215,0,.04));border:1px solid rgba(255,215,0,.45);border-radius:10px;padding:10px 12px;margin:2px 0 10px;'" : "" %>>
   <span>
@@ -61,6 +65,7 @@
 </div></section>
 </main>
 <script src='/app.js' defer></script>
+<script src='/vendor/html2canvas.min.js' defer></script>
 <script nonce="<%= cspNonce %>">
 const csrfToken = '<%= csrfToken %>';
 document.querySelectorAll('.prediction .save').forEach(btn=>{btn.onclick=async()=>{const row=btn.closest('.prediction');const id=row.dataset.match;const ph=row.querySelector('.ph').value;const pa=row.querySelector('.pa').value;const r=await fetch(`/pools/<%= pool.id %>/predictions/${id}`,{method:'POST',headers:{'Content-Type':'application/json','x-csrf-token':csrfToken},body:JSON.stringify({pred_home:ph,pred_away:pa})});if(r.ok){btn.textContent='Saved';setTimeout(()=>btn.textContent='Save',900);}else{const j=await r.json().catch(()=>({}));alert(j.error||'Prediction is locked.');}}})
@@ -78,6 +83,60 @@ if (copyBtn && inviteInput) {
       document.execCommand('copy');
       copyBtn.textContent = 'Copied';
       setTimeout(() => (copyBtn.textContent = 'Copy invite'), 1200);
+    }
+  };
+}
+
+const shareBtn = document.getElementById('share-standings');
+const standingsCard = document.getElementById('standings-card');
+if (shareBtn && standingsCard) {
+  shareBtn.onclick = async () => {
+    if (!window.html2canvas) {
+      alert('Snapshot tool not loaded yet. Please try again.');
+      return;
+    }
+
+    const original = shareBtn.textContent;
+    shareBtn.disabled = true;
+    shareBtn.textContent = 'Preparing...';
+
+    try {
+      const canvas = await window.html2canvas(standingsCard, {
+        backgroundColor: '#0b1437',
+        scale: Math.min(window.devicePixelRatio || 2, 3),
+        useCORS: true,
+      });
+
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+      if (!blob) throw new Error('snapshot_failed');
+
+      const fileName = `lakiniela-standings-<%= pool.code %>.png`;
+      const file = new File([blob], fileName, { type: 'image/png' });
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `<%= pool.name %> standings`,
+          text: `<%= pool.name %> standings`,
+        });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+      }
+
+      shareBtn.textContent = 'Shared';
+      setTimeout(() => (shareBtn.textContent = original), 1400);
+    } catch (e) {
+      shareBtn.textContent = original;
+      alert('Could not share snapshot right now.');
+    } finally {
+      shareBtn.disabled = false;
     }
   };
 }

@@ -145,6 +145,9 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .points-user-name{font-weight:700;margin-bottom:6px}
 .points-user-total{font-size:1.05rem;color:#dfe8ff}
 
+.standings-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.standings-head h3{margin:0}
+#share-standings{white-space:nowrap}
 .standings{padding-left:18px}
 .standings li{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #274080}
 .standings li.standing-top{
