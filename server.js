@@ -280,56 +280,76 @@ function getUpcomingUniqueScheduledMatches() {
     SELECT *
     FROM matches
     WHERE external_id LIKE 'espn:%'
-      AND kickoff_at >= datetime('now', '-21 days')
-      AND kickoff_at <= datetime('now', '+21 days')
+      AND kickoff_at >= datetime('now', '-7 days')
+      AND kickoff_at <= datetime('now', '+35 days')
     ORDER BY kickoff_at ASC
   `).all();
 
-  const rounds = [];
-  let current = [];
-  let usedTeams = new Set();
+  const buildRounds = (list) => {
+    const out = [];
+    let current = [];
+    let usedTeams = new Set();
 
-  for (const m of all) {
-    const home = String(m.home_team || '').toLowerCase();
-    const away = String(m.away_team || '').toLowerCase();
-    if (!home || !away) continue;
+    for (const m of list) {
+      const home = String(m.home_team || '').toLowerCase();
+      const away = String(m.away_team || '').toLowerCase();
+      if (!home || !away) continue;
 
-    const repeats = usedTeams.has(home) || usedTeams.has(away);
-    const fullRound = current.length >= 9; // Liga MX usually 9 matches / jornada
+      const repeats = usedTeams.has(home) || usedTeams.has(away);
+      const fullRound = current.length >= 9; // Liga MX usually 9 matches / jornada
 
-    if ((repeats || fullRound) && current.length) {
-      rounds.push(current);
-      current = [];
-      usedTeams = new Set();
+      if ((repeats || fullRound) && current.length) {
+        out.push(current);
+        current = [];
+        usedTeams = new Set();
+      }
+
+      current.push(m);
+      usedTeams.add(home);
+      usedTeams.add(away);
     }
+    if (current.length) out.push(current);
+    return out;
+  };
 
-    current.push(m);
-    usedTeams.add(home);
-    usedTeams.add(away);
-  }
-  if (current.length) rounds.push(current);
-
+  const rounds = buildRounds(all);
   if (!rounds.length) return { matches: [], jornadaNumber: 9 };
 
   const now = Date.now();
-
   let selected = null;
 
-  // pick current jornada first (has live, or in-progress schedule window)
-  const withLive = rounds.find((r) => r.some((m) => m.status === 'live'));
+  // pick current jornada first only if it is actively live in the last few hours
+  // (avoid stale "live" statuses from old synced fixtures).
+  const withLive = rounds.find((r) => r.some((m) => {
+    if (m.status !== 'live') return false;
+    const t = new Date(m.kickoff_at).getTime();
+    return Number.isFinite(t) && Math.abs(now - t) <= (8 * 60 * 60 * 1000);
+  }));
   if (withLive) selected = withLive;
 
   // otherwise pick the nearest upcoming jornada
   if (!selected) {
     const upcomingIndex = rounds.findIndex((r) => r.some((m) => new Date(m.kickoff_at).getTime() >= now));
-    if (upcomingIndex >= 0) {
-      const r = rounds[upcomingIndex];
-      selected = r;
-    }
+    if (upcomingIndex >= 0) selected = rounds[upcomingIndex];
   }
 
   // fallback: latest known jornada
   if (!selected) selected = rounds[rounds.length - 1];
+
+  // Heuristic for split jornadas: if selected round is too small, try skipping a likely
+  // outlier early fixture and rebuild from upcoming matches to recover a 9-game block.
+  if (selected.length < 8) {
+    const upcomingAll = all.filter((m) => new Date(m.kickoff_at).getTime() >= now - (6 * 60 * 60 * 1000));
+    let best = selected;
+    for (let offset = 0; offset <= Math.min(3, upcomingAll.length - 1); offset++) {
+      const candidateRounds = buildRounds(upcomingAll.slice(offset));
+      const first = candidateRounds[0];
+      if (!first) continue;
+      if (first.length > best.length) best = first;
+      if (best.length >= 9) break;
+    }
+    selected = best;
+  }
 
   const explicitMatchday = selected
     .map((m) => Number(m.matchday))
