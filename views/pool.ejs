@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260316share1'/></head><body>
+<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260316share2'/></head><body>
 <header class='top'><a href='/dashboard'>← Dashboard</a><div class='brand'><img class='brand-logo' src='/img/logo.png' alt='lakiniela logo'/><h1><%= pool.name %></h1></div><span class='badge'>Code: <%= pool.code %></span></header>
 <main class='grid two'>
 <section class='card' id='standings-card'>
@@ -88,8 +88,8 @@ if (copyBtn && inviteInput) {
 }
 
 const shareBtn = document.getElementById('share-standings');
-const standingsCard = document.getElementById('standings-card');
-if (shareBtn && standingsCard) {
+const standingsList = document.getElementById('standings-list');
+if (shareBtn && standingsList) {
   shareBtn.onclick = async () => {
     if (!window.html2canvas) {
       alert('Snapshot tool not loaded yet. Please try again.');
@@ -101,11 +101,39 @@ if (shareBtn && standingsCard) {
     shareBtn.textContent = 'Preparing...';
 
     try {
-      const canvas = await window.html2canvas(standingsCard, {
-        backgroundColor: '#0b1437',
+      const rows = Array.from(standingsList.querySelectorAll('li')).map((li, i) => {
+        const name = li.querySelector('a')?.textContent?.trim() || 'Player';
+        const pointsRaw = li.querySelector('strong')?.textContent?.replace('👑', '').trim() || '0 pts';
+        return { rank: i + 1, name, points: pointsRaw };
+      });
+
+      const shot = document.createElement('div');
+      shot.className = 'standings-snapshot';
+      shot.innerHTML = `
+        <div class="standings-snapshot-head">
+          <div>
+            <h2>Standings</h2>
+            <p><%= pool.name %> · Code <%= pool.code %></p>
+          </div>
+          <img src="/img/logo.png" alt="lakiniela" />
+        </div>
+        <ol>
+          ${rows.map((r, i) => `
+            <li class="${i === 0 ? 'is-top' : ''}">
+              <span class="left"><span class="rank">#${r.rank}</span>${r.name}</span>
+              <strong>${r.points}${i === 0 ? ' 👑' : ''}</strong>
+            </li>
+          `).join('')}
+        </ol>
+      `;
+      document.body.appendChild(shot);
+
+      const canvas = await window.html2canvas(shot, {
+        backgroundColor: null,
         scale: Math.min(window.devicePixelRatio || 2, 3),
         useCORS: true,
       });
+      shot.remove();
 
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
       if (!blob) throw new Error('snapshot_failed');
