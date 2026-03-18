@@ -6,7 +6,7 @@ const cron = require('node-cron');
 const helmet = require('helmet');
 const { z } = require('zod');
 const db = require('./db');
-const { recalcPointsForMatch, syncLigaMxScores } = require('./services/updater');
+const { recalcPointsForMatch, syncLigaMxScores, syncChampionsLeagueScores } = require('./services/updater');
 
 const app = express();
 const PORT = process.env.PORT || 3090;
@@ -201,9 +201,20 @@ const registerSchema = z.object({
   password: z.string().min(8).max(128),
 });
 const loginSchema = z.object({ username: z.string().trim().min(1), password: z.string().min(1) });
-const createPoolSchema = z.object({ name: z.string().trim().min(1).max(80) });
+const createPoolSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  competition_type: z.enum(['liga_mx', 'champions_league']).default('liga_mx'),
+});
 const joinPoolSchema = z.object({ code: z.string().trim().min(4).max(16) });
 const predictionSchema = z.object({ pred_home: z.coerce.number().int().min(0).max(30), pred_away: z.coerce.number().int().min(0).max(30) });
+const COMPETITIONS = {
+  liga_mx: { key: 'liga_mx', label: 'Liga MX', leagueLabel: 'Liga MX', expectedMatches: 9, roundLabel: 'Jornada' },
+  champions_league: { key: 'champions_league', label: 'Champions League', leagueLabel: 'UEFA Champions League', expectedMatches: 4, roundLabel: 'Round' },
+};
+
+function getCompetition(type) {
+  return COMPETITIONS[type] || COMPETITIONS.liga_mx;
+}
 
 function parseBody(schema, raw) {
   const parsed = schema.safeParse(raw);
@@ -273,17 +284,17 @@ function inferJornadaFromAnchor(matches) {
   return Math.max(1, anchorJornada + weeks);
 }
 
-function getUpcomingUniqueScheduledMatches() {
-  // ESPN scoreboard doesn't reliably expose jornada/week for Liga MX in this feed.
-  // So we infer a gameweek by grouping chronological matches where teams don't repeat.
+function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
+  const competition = getCompetition(competitionType);
   const all = db.prepare(`
     SELECT *
     FROM matches
     WHERE external_id LIKE 'espn:%'
+      AND league = ?
       AND kickoff_at >= datetime('now', '-7 days')
-      AND kickoff_at <= datetime('now', '+35 days')
+      AND kickoff_at <= datetime('now', '+45 days')
     ORDER BY kickoff_at ASC
-  `).all();
+  `).all(competition.leagueLabel);
 
   const buildRounds = (list) => {
     const out = [];
@@ -296,7 +307,7 @@ function getUpcomingUniqueScheduledMatches() {
       if (!home || !away) continue;
 
       const repeats = usedTeams.has(home) || usedTeams.has(away);
-      const fullRound = current.length >= 9; // Liga MX usually 9 matches / jornada
+      const fullRound = current.length >= competition.expectedMatches;
 
       if ((repeats || fullRound) && current.length) {
         out.push(current);
@@ -313,13 +324,11 @@ function getUpcomingUniqueScheduledMatches() {
   };
 
   const rounds = buildRounds(all);
-  if (!rounds.length) return { matches: [], jornadaNumber: 9 };
+  if (!rounds.length) return { matches: [], roundNumber: competitionType === 'liga_mx' ? 9 : 1, roundLabel: competition.roundLabel };
 
   const now = Date.now();
   let selected = null;
 
-  // pick current jornada first only if it is actively live in the last few hours
-  // (avoid stale "live" statuses from old synced fixtures).
   const withLive = rounds.find((r) => r.some((m) => {
     if (m.status !== 'live') return false;
     const t = new Date(m.kickoff_at).getTime();
@@ -327,26 +336,22 @@ function getUpcomingUniqueScheduledMatches() {
   }));
   if (withLive) selected = withLive;
 
-  // otherwise pick the nearest upcoming jornada
   if (!selected) {
     const upcomingIndex = rounds.findIndex((r) => r.some((m) => new Date(m.kickoff_at).getTime() >= now));
     if (upcomingIndex >= 0) selected = rounds[upcomingIndex];
   }
 
-  // fallback: latest known jornada
   if (!selected) selected = rounds[rounds.length - 1];
 
-  // Heuristic for split jornadas: if selected round is too small, try skipping a likely
-  // outlier early fixture and rebuild from upcoming matches to recover a 9-game block.
-  if (selected.length < 8) {
+  if (selected.length < Math.max(2, competition.expectedMatches - 1)) {
     const upcomingAll = all.filter((m) => new Date(m.kickoff_at).getTime() >= now - (6 * 60 * 60 * 1000));
     let best = selected;
-    for (let offset = 0; offset <= Math.min(3, upcomingAll.length - 1); offset++) {
+    for (let offset = 0; offset <= Math.min(3, Math.max(0, upcomingAll.length - 1)); offset++) {
       const candidateRounds = buildRounds(upcomingAll.slice(offset));
       const first = candidateRounds[0];
       if (!first) continue;
       if (first.length > best.length) best = first;
-      if (best.length >= 9) break;
+      if (best.length >= competition.expectedMatches) break;
     }
     selected = best;
   }
@@ -356,8 +361,8 @@ function getUpcomingUniqueScheduledMatches() {
     .filter((n) => Number.isInteger(n) && n > 0)
     .sort((a, b) => b - a)[0];
 
-  const jornadaNumber = explicitMatchday || inferJornadaFromAnchor(selected);
-  return { matches: selected, jornadaNumber };
+  const roundNumber = explicitMatchday || (competitionType === 'liga_mx' ? inferJornadaFromAnchor(selected) : 1);
+  return { matches: selected, roundNumber, roundLabel: competition.roundLabel };
 }
 
 function lockPoolMatches(poolId, matches) {
@@ -519,8 +524,13 @@ app.get('/dashboard', auth, (req, res) => {
     ORDER BY points DESC, u.name ASC
   `).all(req.session.user.id);
 
-  const matchdayView = getUpcomingUniqueScheduledMatches();
-  const nextMatches = matchdayView.matches.map((m) => ({
+  const ligaMxView = getUpcomingUniqueScheduledMatches('liga_mx');
+  const championsView = getUpcomingUniqueScheduledMatches('champions_league');
+  const nextMatches = ligaMxView.matches.map((m) => ({
+    ...m,
+    kickoff_local: formatCentral(m.kickoff_at),
+  }));
+  const championsMatches = championsView.matches.map((m) => ({
     ...m,
     kickoff_local: formatCentral(m.kickoff_at),
   }));
@@ -528,7 +538,9 @@ app.get('/dashboard', auth, (req, res) => {
     pools,
     pointsDashboard,
     nextMatches,
-    jornadaNumber: matchdayView.jornadaNumber,
+    jornadaNumber: ligaMxView.roundNumber,
+    championsMatches,
+    championsRoundNumber: championsView.roundNumber,
     isAdmin: req.session.user.role === 'admin',
   });
 });
@@ -609,15 +621,16 @@ app.post('/pools/create', auth, (req, res) => {
   const input = parseBody(createPoolSchema, req.body);
   if (!input) return res.redirect('/dashboard');
   const poolCode = code();
-  const snapshotMatches = getUpcomingUniqueScheduledMatches().matches;
+  const competitionType = input.competition_type || 'liga_mx';
+  const snapshotMatches = getUpcomingUniqueScheduledMatches(competitionType).matches;
 
   const tx = db.transaction(() => {
-    const info = db.prepare('INSERT INTO pools (name, code, owner_id) VALUES (?, ?, ?)').run(input.name, poolCode, req.session.user.id);
+    const info = db.prepare('INSERT INTO pools (name, code, owner_id, competition_type) VALUES (?, ?, ?, ?)').run(input.name, poolCode, req.session.user.id, competitionType);
     db.prepare('INSERT INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(info.lastInsertRowid, req.session.user.id);
     lockPoolMatches(info.lastInsertRowid, snapshotMatches);
   });
   tx();
-  logEvent('pool.create', { poolName: input.name, poolCode }, req, true);
+  logEvent('pool.create', { poolName: input.name, poolCode, competitionType }, req, true);
   res.redirect('/dashboard');
 });
 
@@ -659,7 +672,7 @@ app.get('/pools/:id', auth, (req, res) => {
   let matches = getPoolMatches(pool.id);
   if (!matches.length) {
     // Backfill old pools created before match-locking feature
-    const snapshotMatches = getUpcomingUniqueScheduledMatches().matches;
+    const snapshotMatches = getUpcomingUniqueScheduledMatches(pool.competition_type || 'liga_mx').matches;
     lockPoolMatches(pool.id, snapshotMatches);
     matches = getPoolMatches(pool.id);
   }
@@ -693,7 +706,7 @@ app.get('/pools/:id/users/:userId/picks', auth, (req, res) => {
 
   let matches = getPoolMatches(pool.id);
   if (!matches.length) {
-    const snapshotMatches = getUpcomingUniqueScheduledMatches().matches;
+    const snapshotMatches = getUpcomingUniqueScheduledMatches(pool.competition_type || 'liga_mx').matches;
     lockPoolMatches(pool.id, snapshotMatches);
     matches = getPoolMatches(pool.id);
   }
@@ -766,9 +779,9 @@ app.post('/admin/sync', async (req, res) => {
     return res.status(401).json({ ok: false });
   }
   try {
-    const result = await syncLigaMxScores();
-    logEvent('admin.sync.ok', { updated: result?.updated || 0 }, req, true);
-    return res.json(result);
+    const [ligaMx, champions] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores()]);
+    logEvent('admin.sync.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0 }, req, true);
+    return res.json({ ok: true, ligaMx, champions });
   } catch (e) {
     logEvent('admin.sync.failed', { error: e.message }, req, false);
     return res.status(500).json({ ok: false, error: e.message });
@@ -778,8 +791,8 @@ app.post('/admin/sync', async (req, res) => {
 cron.schedule('*/5 * * * *', async () => {
   try {
     if (!shouldRunFrequentSyncNow()) return;
-    const result = await syncLigaMxScores();
-    logEvent('sync.auto.ok', { updated: result?.updated || 0 }, null, true);
+    const [ligaMx, champions] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores()]);
+    logEvent('sync.auto.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0 }, null, true);
   } catch (e) {
     logEvent('sync.auto.failed', { error: e.message }, null, false);
   }
@@ -793,8 +806,8 @@ cron.schedule('*/15 * * * *', () => {
 
 (async () => {
   try {
-    const result = await syncLigaMxScores();
-    logEvent('sync.startup.ok', { updated: result?.updated || 0 }, null, true);
+    const [ligaMx, champions] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores()]);
+    logEvent('sync.startup.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0 }, null, true);
   } catch (e) {
     logEvent('sync.startup.failed', { error: e.message }, null, false);
   }

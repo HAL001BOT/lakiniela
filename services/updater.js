@@ -1,6 +1,23 @@
 const axios = require('axios');
 const db = require('../db');
 
+const COMPETITIONS = {
+  LIGA_MX: {
+    key: 'liga_mx',
+    leagueLabel: 'Liga MX',
+    espnPath: 'mex.1',
+    dateLookbackDays: 7,
+    dateAheadDays: 21,
+  },
+  CHAMPIONS_LEAGUE: {
+    key: 'champions_league',
+    leagueLabel: 'UEFA Champions League',
+    espnPath: 'uefa.champions',
+    dateLookbackDays: 7,
+    dateAheadDays: 45,
+  },
+};
+
 function resultPoints(predHome, predAway, realHome, realAway) {
   if (predHome === realHome && predAway === realAway) return 5;
   const predResult = Math.sign(predHome - predAway);
@@ -20,7 +37,6 @@ function recalcPointsForMatch(matchId) {
     update.run(points, p.id);
   }
 }
-
 
 function upsertMatch(match) {
   if (!match.home || !match.away || !match.kickoffAt || !match.externalId) return null;
@@ -73,15 +89,15 @@ function upsertMatch(match) {
   return { created: true, id: info.lastInsertRowid };
 }
 
-async function fetchEspnLigaMx() {
+async function fetchEspnCompetition(config) {
   const now = new Date();
   const from = new Date(now);
-  from.setDate(from.getDate() - 7);
+  from.setDate(from.getDate() - (config.dateLookbackDays || 7));
   const to = new Date(now);
-  to.setDate(to.getDate() + 14);
+  to.setDate(to.getDate() + (config.dateAheadDays || 21));
   const fmt = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
 
-  const url = 'https://site.api.espn.com/apis/site/v2/sports/soccer/mex.1/scoreboard';
+  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${config.espnPath}/scoreboard`;
   const { data } = await axios.get(url, {
     params: { dates: `${fmt(from)}-${fmt(to)}` },
     timeout: 20000,
@@ -101,8 +117,8 @@ async function fetchEspnLigaMx() {
     const awayScore = (status === 'finished' || status === 'live') ? parsedAway : null;
 
     return {
-      externalId: `espn:${ev.id}`,
-      league: 'Liga MX',
+      externalId: `espn:${config.key}:${ev.id}`,
+      league: config.leagueLabel,
       season: String(ev.season?.year || ''),
       matchday: comp.week?.number || null,
       home: home?.team?.displayName,
@@ -117,9 +133,9 @@ async function fetchEspnLigaMx() {
   });
 }
 
-async function syncLigaMxScores() {
+async function syncCompetition(config) {
   const source = 'espn-public';
-  const fixtures = await fetchEspnLigaMx();
+  const fixtures = await fetchEspnCompetition(config);
 
   let created = 0;
   let updated = 0;
@@ -133,7 +149,21 @@ async function syncLigaMxScores() {
     if (f.status === 'finished') finished += 1;
   }
 
-  return { ok: true, source, total: (fixtures || []).length, created, updated, finished };
+  return { ok: true, source, competition: config.key, total: (fixtures || []).length, created, updated, finished };
 }
 
-module.exports = { resultPoints, recalcPointsForMatch, syncLigaMxScores };
+async function syncLigaMxScores() {
+  return syncCompetition(COMPETITIONS.LIGA_MX);
+}
+
+async function syncChampionsLeagueScores() {
+  return syncCompetition(COMPETITIONS.CHAMPIONS_LEAGUE);
+}
+
+module.exports = {
+  resultPoints,
+  recalcPointsForMatch,
+  syncLigaMxScores,
+  syncChampionsLeagueScores,
+  COMPETITIONS,
+};

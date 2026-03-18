@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS pools (
   code TEXT UNIQUE NOT NULL,
   owner_id INTEGER NOT NULL,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  competition_type TEXT DEFAULT 'liga_mx',
   FOREIGN KEY(owner_id) REFERENCES users(id)
 );
 
@@ -151,3 +152,5 @@ if (!countMatches) {
 }
 
 module.exports = db;
+
+try { db.exec("ALTER TABLE pools ADD COLUMN competition_type TEXT DEFAULT 'liga_mx'"); } catch {}
