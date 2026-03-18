@@ -343,6 +343,20 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
 
   if (!selected) selected = rounds[rounds.length - 1];
 
+  // Liga MX can have small carry-over fixtures from previous jornada.
+  // If we landed on a partial/older block but the next block is near-complete,
+  // prefer the next block so dashboard shows the upcoming jornada (e.g. 12, not 11 leftovers).
+  if (competitionType === 'liga_mx') {
+    const selectedIdx = rounds.findIndex((r) => r === selected);
+    const nextRound = selectedIdx >= 0 ? rounds[selectedIdx + 1] : null;
+    const selectedFinished = selected.filter((m) => m.status === 'finished').length;
+    const selectedFirstKick = Math.min(...selected.map((m) => new Date(m.kickoff_at).getTime()).filter(Number.isFinite));
+    const selectedIsPartial = selected.length < competition.expectedMatches;
+    const selectedLooksLikeCarryOver = selectedIsPartial && (selectedFinished > 0 || (Number.isFinite(selectedFirstKick) && selectedFirstKick < now - (12 * 60 * 60 * 1000)));
+    const nextLooksFull = !!nextRound && nextRound.length >= Math.max(8, competition.expectedMatches - 1);
+    if (selectedLooksLikeCarryOver && nextLooksFull) selected = nextRound;
+  }
+
   if (selected.length < Math.max(2, competition.expectedMatches - 1)) {
     const upcomingAll = all.filter((m) => new Date(m.kickoff_at).getTime() >= now - (6 * 60 * 60 * 1000));
     let best = selected;
