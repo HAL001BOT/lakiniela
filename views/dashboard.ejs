@@ -21,7 +21,7 @@
 <div class='list'>
 <% pools.forEach(p=> { %>
 <a class='pool-item' href='/pools/<%= p.id %>'>
-  <div class='pool-item-head'><img class='pool-item-logo' src='<%= p.competition_type === "champions_league" ? "/img/champions-league.png" : "/img/logo.png" %>' alt='pool logo'/><strong><%= p.name %></strong></div>
+  <div class='pool-item-head'><img class='pool-item-logo' src='<%= p.competition_type === "champions_league" ? "/img/champions-league.png" : "/img/logo.png" %>' alt='pool logo' style='<%= p.competition_type === "champions_league" ? "filter: brightness(2.2) contrast(1.2) drop-shadow(0 0 8px rgba(255,255,255,.35));" : "" %>'/><strong><%= p.name %></strong></div>
   <div class='pool-meta-row'>
     <span>Code: <%= p.code %> · <%= p.members %> members · <%= p.competition_type === 'champions_league' ? 'Champions League' : 'Liga MX' %></span>
     <% if (p.pool_finished && p.winner_name) { %>
