@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= targetMember.name %> picks · <%= pool.name %></title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css'/></head><body>
-<header class='top'><a href='/pools/<%= pool.id %>'>← Back to pool</a><div class='brand'><img class='brand-logo' src='<%= pool.competition_type === "champions_league" ? "/img/champions-league.jpg" : "/img/logo.png" %>' alt='pool logo'/><h1><%= targetMember.name %> picks</h1></div><span class='badge'><%= pool.name %></span></header>
+<header class='top'><a href='/pools/<%= pool.id %>'>← Back to pool</a><div class='brand'><img class='brand-logo' src='<%= pool.competition_type === "champions_league" ? "/img/champions-league.svg" : "/img/logo.png" %>' alt='pool logo'/><h1><%= targetMember.name %> picks</h1></div><span class='badge'><%= pool.name %></span></header>
 <main class='grid'>
 <section class='card'>
   <h3>Read-only predictions</h3>
