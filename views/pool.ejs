@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260316share2'/></head><body>
-<header class='top'><a href='/dashboard'>← Dashboard</a><div class='brand'><img class='brand-logo' src='<%= pool.competition_type === "champions_league" ? "/img/champions-league.png" : "/img/logo.png" %>' alt='pool logo' style='<%= pool.competition_type === "champions_league" ? "filter: brightness(2.2) contrast(1.2) drop-shadow(0 0 10px rgba(255,255,255,.35));" : "" %>'/><h1><%= pool.name %></h1></div><span class='badge'>Code: <%= pool.code %></span></header>
+<header class='top'><a href='/dashboard'>← Dashboard</a><div class='brand'><img class='brand-logo' src='<%= pool.competition_type === "champions_league" ? "/img/champions-league.png" : "/img/logo.png" %>' alt='pool logo'/><h1><%= pool.name %></h1></div><span class='badge'>Code: <%= pool.code %></span></header>
 <main class='grid two'>
 <section class='card' id='standings-card'>
 <div class='standings-head'>
