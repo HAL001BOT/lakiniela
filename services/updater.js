@@ -116,8 +116,10 @@ async function fetchEspnCompetition(config) {
     const homeScore = (status === 'finished' || status === 'live') ? parsedHome : null;
     const awayScore = (status === 'finished' || status === 'live') ? parsedAway : null;
 
+    const externalId = config.key === 'liga_mx' ? `espn:${ev.id}` : `espn:${config.key}:${ev.id}`;
+
     return {
-      externalId: `espn:${config.key}:${ev.id}`,
+      externalId,
       league: config.leagueLabel,
       season: String(ev.season?.year || ''),
       matchday: comp.week?.number || null,
