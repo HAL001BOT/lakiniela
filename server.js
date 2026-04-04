@@ -387,6 +387,15 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
     const selectedLooksLikeCarryOver = selectedIsPartial && (selectedFinished > 0 || (Number.isFinite(selectedFirstKick) && selectedFirstKick < now - (12 * 60 * 60 * 1000)));
     const nextLooksFull = !!nextRound && nextRound.length >= Math.max(8, competition.expectedMatches - 1);
     if (selectedLooksLikeCarryOver && nextLooksFull) selected = nextRound;
+
+    const upcomingRounds = rounds.filter((r) => r.some((m) => {
+      const t = new Date(m.kickoff_at).getTime();
+      return Number.isFinite(t) && t >= now - (6 * 60 * 60 * 1000);
+    }));
+    const fullestUpcoming = upcomingRounds.sort((a, b) => b.length - a.length)[0];
+    if (fullestUpcoming && fullestUpcoming.length > selected.length && fullestUpcoming.length >= Math.max(8, competition.expectedMatches - 1)) {
+      selected = fullestUpcoming;
+    }
   }
 
   if (selected.length < Math.max(2, competition.expectedMatches - 1)) {
