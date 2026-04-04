@@ -473,7 +473,7 @@ function cleanupPoolDuplicateMatches(poolId) {
     const away = normalizeTeamName(row.away_team);
     const kickoffMs = new Date(row.kickoff_at).getTime();
     const roundedKickoff = Number.isFinite(kickoffMs)
-      ? Math.round(kickoffMs / (15 * 60 * 1000)) * (15 * 60 * 1000)
+      ? Math.floor(kickoffMs / (30 * 60 * 1000)) * (30 * 60 * 1000)
       : row.kickoff_at;
     const key = `${home}|${away}|${roundedKickoff}`;
 
