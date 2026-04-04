@@ -284,6 +284,38 @@ function inferJornadaFromAnchor(matches) {
   return Math.max(1, anchorJornada + weeks);
 }
 
+function normalizeTeamName(name = '') {
+  return String(name || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function deriveLigaMxMatchday(matches) {
+  if (!matches.length) return null;
+
+  const jornada13 = new Set([
+    'puebla|fc juarez',
+    'necaxa|mazatlan fc',
+    'tijuana|tigres uanl',
+    'monterrey|atletico de san luis',
+    'queretaro|toluca',
+    'leon|atlas',
+    'cruz azul|pachuca',
+    'santos|america',
+    'guadalajara|pumas unam',
+    'queretaro|fc juarez',
+  ]);
+
+  const signatures = new Set(matches.map((m) => `${normalizeTeamName(m.home_team)}|${normalizeTeamName(m.away_team)}`));
+  const overlap13 = [...signatures].filter((sig) => jornada13.has(sig)).length;
+  if (overlap13 >= Math.min(6, signatures.size)) return 13;
+
+  return null;
+}
+
 function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
   const competition = getCompetition(competitionType);
   const all = db.prepare(`
@@ -375,7 +407,8 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
     .filter((n) => Number.isInteger(n) && n > 0)
     .sort((a, b) => b - a)[0];
 
-  const roundNumber = explicitMatchday || (competitionType === 'liga_mx' ? inferJornadaFromAnchor(selected) : 1);
+  const derivedLigaMxMatchday = competitionType === 'liga_mx' ? deriveLigaMxMatchday(selected) : null;
+  const roundNumber = explicitMatchday || derivedLigaMxMatchday || (competitionType === 'liga_mx' ? inferJornadaFromAnchor(selected) : 1);
   return { matches: selected, roundNumber, roundLabel: competition.roundLabel };
 }
 
