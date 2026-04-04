@@ -727,13 +727,22 @@ app.get('/admin/users', admin, (req, res) => {
     ORDER BY p.created_at DESC
   `).all();
 
+  const pools = db.prepare(`
+    SELECT p.id, p.name, p.code, p.competition_type, p.created_at,
+           owner.name AS owner_name,
+           (SELECT COUNT(*) FROM pool_members pm WHERE pm.pool_id = p.id) AS members
+    FROM pools p
+    LEFT JOIN users owner ON owner.id = p.owner_id
+    ORDER BY p.created_at DESC
+  `).all();
+
   const poolsByUser = new Map();
   memberships.forEach((m) => {
     if (!poolsByUser.has(m.user_id)) poolsByUser.set(m.user_id, []);
     poolsByUser.get(m.user_id).push(m);
   });
 
-  res.render('admin-users', { users, me: req.session.user, poolsByUser });
+  res.render('admin-users', { users, me: req.session.user, poolsByUser, pools });
 });
 
 app.post('/admin/users/:id/role', admin, (req, res) => {
@@ -779,6 +788,21 @@ app.post('/admin/pools/:poolId/users/:userId/remove', admin, (req, res) => {
   db.prepare('DELETE FROM predictions WHERE pool_id = ? AND user_id = ?').run(poolId, userId);
   db.prepare('DELETE FROM pool_members WHERE pool_id = ? AND user_id = ?').run(poolId, userId);
   logEvent('admin.pool.remove_member', { poolId, userId }, req, true);
+  res.redirect('/admin/users');
+});
+
+app.post('/admin/pools/:poolId/delete', admin, (req, res) => {
+  const poolId = Number(req.params.poolId);
+  if (!Number.isInteger(poolId)) return res.redirect('/admin/users');
+
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM predictions WHERE pool_id = ?').run(poolId);
+    db.prepare('DELETE FROM pool_matches WHERE pool_id = ?').run(poolId);
+    db.prepare('DELETE FROM pool_members WHERE pool_id = ?').run(poolId);
+    db.prepare('DELETE FROM pools WHERE id = ?').run(poolId);
+  });
+  tx();
+  logEvent('admin.pool.delete', { poolId }, req, true);
   res.redirect('/admin/users');
 });
 
