@@ -296,22 +296,29 @@ function normalizeTeamName(name = '') {
 function deriveLigaMxMatchday(matches) {
   if (!matches.length) return null;
 
-  const jornada13 = new Set([
-    'puebla|fc juarez',
-    'necaxa|mazatlan fc',
-    'tijuana|tigres uanl',
-    'monterrey|atletico de san luis',
-    'queretaro|toluca',
-    'leon|atlas',
-    'cruz azul|pachuca',
-    'santos|america',
-    'guadalajara|pumas unam',
-    'queretaro|fc juarez',
-  ]);
+  const knownMatchdays = [
+    {
+      number: 13,
+      fixtures: [
+        'puebla|fc juarez',
+        'necaxa|mazatlan fc',
+        'tijuana|tigres uanl',
+        'monterrey|atletico de san luis',
+        'queretaro|toluca',
+        'leon|atlas',
+        'cruz azul|pachuca',
+        'santos|america',
+        'guadalajara|pumas unam',
+        'queretaro|fc juarez',
+      ],
+    },
+  ];
 
   const signatures = new Set(matches.map((m) => `${normalizeTeamName(m.home_team)}|${normalizeTeamName(m.away_team)}`));
-  const overlap13 = [...signatures].filter((sig) => jornada13.has(sig)).length;
-  if (overlap13 >= Math.min(6, signatures.size)) return 13;
+  for (const candidate of knownMatchdays) {
+    const overlap = [...signatures].filter((sig) => candidate.fixtures.includes(sig)).length;
+    if (overlap >= Math.min(6, signatures.size)) return candidate.number;
+  }
 
   return null;
 }
