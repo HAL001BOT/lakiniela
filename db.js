@@ -112,6 +112,26 @@ CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_a
 
 try { db.exec('ALTER TABLE matches ADD COLUMN home_logo TEXT'); } catch {}
 try { db.exec('ALTER TABLE matches ADD COLUMN away_logo TEXT'); } catch {}
+try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_external_id ON matches(external_id) WHERE external_id IS NOT NULL'); } catch {}
+
+const duplicateExternalMatches = db.prepare(`
+  SELECT external_id, MIN(id) AS keep_id
+  FROM matches
+  WHERE external_id IS NOT NULL AND TRIM(external_id) != ''
+  GROUP BY external_id
+  HAVING COUNT(*) > 1
+`).all();
+
+for (const row of duplicateExternalMatches) {
+  const dupIds = db.prepare('SELECT id FROM matches WHERE external_id = ? AND id != ? ORDER BY id ASC').all(row.external_id, row.keep_id).map(r => r.id);
+  for (const dupId of dupIds) {
+    db.prepare('UPDATE OR IGNORE predictions SET match_id = ? WHERE match_id = ?').run(row.keep_id, dupId);
+    db.prepare('UPDATE OR IGNORE pool_matches SET match_id = ? WHERE match_id = ?').run(row.keep_id, dupId);
+    db.prepare('DELETE FROM predictions WHERE match_id = ?').run(dupId);
+    db.prepare('DELETE FROM pool_matches WHERE match_id = ?').run(dupId);
+    db.prepare('DELETE FROM matches WHERE id = ?').run(dupId);
+  }
+}
 try { db.exec('ALTER TABLE users ADD COLUMN username TEXT'); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch {}
 try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)'); } catch {}
