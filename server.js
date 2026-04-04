@@ -535,6 +535,19 @@ function getPoolMatches(poolId) {
   return out;
 }
 
+function repairPoolMatches(poolId, competitionType = 'liga_mx') {
+  const snapshotMatches = getUpcomingUniqueScheduledMatches(competitionType).matches || [];
+  if (!snapshotMatches.length) return;
+
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM predictions WHERE pool_id = ?').run(poolId);
+    db.prepare('DELETE FROM pool_matches WHERE pool_id = ?').run(poolId);
+    lockPoolMatches(poolId, snapshotMatches);
+  });
+
+  tx();
+}
+
 function shouldRunFrequentSyncNow() {
   const live = db.prepare(`
     SELECT COUNT(*) c
@@ -826,6 +839,12 @@ app.get('/pools/:id', auth, (req, res) => {
     // Backfill old pools created before match-locking feature
     const snapshotMatches = getUpcomingUniqueScheduledMatches(pool.competition_type || 'liga_mx').matches;
     lockPoolMatches(pool.id, snapshotMatches);
+    matches = getPoolMatches(pool.id);
+  }
+
+  const expectedMatches = getCompetition(pool.competition_type || 'liga_mx').expectedMatches;
+  if ((pool.competition_type || 'liga_mx') === 'liga_mx' && matches.length !== expectedMatches) {
+    repairPoolMatches(pool.id, pool.competition_type || 'liga_mx');
     matches = getPoolMatches(pool.id);
   }
 
