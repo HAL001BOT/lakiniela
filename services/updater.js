@@ -109,7 +109,9 @@ async function fetchEspnCompetition(config) {
     const away = (comp.competitors || []).find((c) => c.homeAway === 'away');
     const completed = !!comp.status?.type?.completed;
     const state = comp.status?.type?.state;
-    const status = completed ? 'finished' : (state === 'in' ? 'live' : 'scheduled');
+    const shortDetail = String(comp.status?.type?.shortDetail || '').toLowerCase();
+    const isLive = state === 'in' || /\b\d{1,3}'/.test(shortDetail) || shortDetail.includes('ht');
+    const status = completed ? 'finished' : (isLive ? 'live' : 'scheduled');
 
     const parsedHome = Number.isFinite(Number(home?.score)) ? Number(home.score) : null;
     const parsedAway = Number.isFinite(Number(away?.score)) ? Number(away.score) : null;
