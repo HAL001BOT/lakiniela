@@ -456,17 +456,17 @@ function lockPoolMatches(poolId, matches) {
   }
 }
 
-function getPoolMatches(poolId) {
+function cleanupPoolDuplicateMatches(poolId) {
   const rows = db.prepare(`
-    SELECT m.*
+    SELECT pm.id AS pool_match_id, pm.match_id, m.*
     FROM pool_matches pm
     JOIN matches m ON m.id = pm.match_id
     WHERE pm.pool_id = ?
-    ORDER BY m.kickoff_at ASC, m.id ASC
+    ORDER BY m.kickoff_at ASC, m.id ASC, pm.id ASC
   `).all(poolId);
 
-  const deduped = [];
-  const seen = new Map();
+  const keepByKey = new Map();
+  const deletePoolMatchIds = [];
 
   for (const row of rows) {
     const home = normalizeTeamName(row.home_team);
@@ -477,25 +477,48 @@ function getPoolMatches(poolId) {
       : row.kickoff_at;
     const key = `${home}|${away}|${roundedKickoff}`;
 
-    const existingIdx = seen.get(key);
-    if (existingIdx === undefined) {
-      seen.set(key, deduped.length);
-      deduped.push(row);
+    const existing = keepByKey.get(key);
+    if (!existing) {
+      keepByKey.set(key, row);
       continue;
     }
 
-    const existing = deduped[existingIdx];
     const existingLive = existing.status === 'live' || existing.status === 'finished';
     const currentLive = row.status === 'live' || row.status === 'finished';
     const existingHasScore = existing.home_score !== null && existing.away_score !== null;
     const currentHasScore = row.home_score !== null && row.away_score !== null;
 
-    if ((!existingLive && currentLive) || (!existingHasScore && currentHasScore) || row.id < existing.id) {
-      deduped[existingIdx] = row;
+    let keepCurrent = false;
+    if (!existingLive && currentLive) keepCurrent = true;
+    else if (!existingHasScore && currentHasScore) keepCurrent = true;
+    else if (row.id < existing.id) keepCurrent = true;
+
+    if (keepCurrent) {
+      deletePoolMatchIds.push(existing.pool_match_id);
+      keepByKey.set(key, row);
+    } else {
+      deletePoolMatchIds.push(row.pool_match_id);
     }
   }
 
-  return deduped;
+  if (deletePoolMatchIds.length) {
+    const tx = db.transaction((ids) => {
+      const del = db.prepare('DELETE FROM pool_matches WHERE id = ?');
+      for (const id of ids) del.run(id);
+    });
+    tx(deletePoolMatchIds);
+  }
+}
+
+function getPoolMatches(poolId) {
+  cleanupPoolDuplicateMatches(poolId);
+  return db.prepare(`
+    SELECT m.*
+    FROM pool_matches pm
+    JOIN matches m ON m.id = pm.match_id
+    WHERE pm.pool_id = ?
+    ORDER BY m.kickoff_at ASC, m.id ASC
+  `).all(poolId);
 }
 
 function shouldRunFrequentSyncNow() {
