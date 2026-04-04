@@ -462,8 +462,15 @@ function getPoolMatches(poolId) {
     FROM pool_matches pm
     JOIN matches m ON m.id = pm.match_id
     WHERE pm.pool_id = ?
-    ORDER BY m.kickoff_at ASC
-  `).all(poolId);
+      AND m.id IN (
+        SELECT MIN(m2.id)
+        FROM pool_matches pm2
+        JOIN matches m2 ON m2.id = pm2.match_id
+        WHERE pm2.pool_id = ?
+        GROUP BY LOWER(TRIM(m2.home_team)), LOWER(TRIM(m2.away_team)), m2.kickoff_at
+      )
+    ORDER BY m.kickoff_at ASC, m.id ASC
+  `).all(poolId, poolId);
 }
 
 function shouldRunFrequentSyncNow() {
