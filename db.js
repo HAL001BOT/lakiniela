@@ -132,6 +132,45 @@ for (const row of duplicateExternalMatches) {
     db.prepare('DELETE FROM matches WHERE id = ?').run(dupId);
   }
 }
+
+const duplicateFixtureRows = db.prepare(`
+  SELECT
+    LOWER(TRIM(home_team)) AS home_key,
+    LOWER(TRIM(away_team)) AS away_key,
+    kickoff_at,
+    MIN(id) AS keep_id
+  FROM matches
+  WHERE league = 'Liga MX'
+  GROUP BY home_key, away_key, kickoff_at
+  HAVING COUNT(*) > 1
+`).all();
+
+for (const row of duplicateFixtureRows) {
+  const dupIds = db.prepare(`
+    SELECT id
+    FROM matches
+    WHERE league = 'Liga MX'
+      AND LOWER(TRIM(home_team)) = ?
+      AND LOWER(TRIM(away_team)) = ?
+      AND kickoff_at = ?
+      AND id != ?
+    ORDER BY id ASC
+  `).all(row.home_key, row.away_key, row.kickoff_at, row.keep_id).map(r => r.id);
+
+  for (const dupId of dupIds) {
+    db.prepare('UPDATE OR IGNORE predictions SET match_id = ? WHERE match_id = ?').run(row.keep_id, dupId);
+    db.prepare('UPDATE OR IGNORE pool_matches SET match_id = ? WHERE match_id = ?').run(row.keep_id, dupId);
+    db.prepare('DELETE FROM predictions WHERE match_id = ?').run(dupId);
+    db.prepare('DELETE FROM pool_matches WHERE match_id = ?').run(dupId);
+    db.prepare('DELETE FROM matches WHERE id = ?').run(dupId);
+  }
+}
+
+try { db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_ligamx_fixture
+  ON matches(league, home_team, away_team, kickoff_at)
+  WHERE league = 'Liga MX'
+`); } catch {}
 try { db.exec('ALTER TABLE users ADD COLUMN username TEXT'); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch {}
 try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)'); } catch {}
