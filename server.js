@@ -335,6 +335,63 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
     ORDER BY kickoff_at ASC
   `).all(competition.leagueLabel);
 
+  if (!all.length) return { matches: [], roundNumber: competitionType === 'liga_mx' ? 9 : 1, roundLabel: competition.roundLabel };
+
+  const now = Date.now();
+
+  if (competitionType === 'liga_mx') {
+    const chicagoDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Chicago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const chicagoWeekday = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Chicago',
+      weekday: 'short',
+    });
+    const dateKey = (iso) => chicagoDate.format(new Date(iso));
+    const weekdayKey = (iso) => chicagoWeekday.format(new Date(iso));
+    const allowedDays = new Set(['Fri', 'Sat', 'Sun']);
+
+    const weekendMatches = all.filter((m) => {
+      const day = weekdayKey(m.kickoff_at);
+      const kickoff = new Date(m.kickoff_at).getTime();
+      return allowedDays.has(day) && Number.isFinite(kickoff);
+    });
+
+    const byDate = new Map();
+    for (const match of weekendMatches) {
+      const key = dateKey(match.kickoff_at);
+      if (!byDate.has(key)) byDate.set(key, []);
+      byDate.get(key).push(match);
+    }
+
+    const orderedDates = [...byDate.keys()].sort();
+    let startIdx = orderedDates.findIndex((key) => {
+      const dayMatches = byDate.get(key) || [];
+      return dayMatches.some((m) => new Date(m.kickoff_at).getTime() >= now - (12 * 60 * 60 * 1000));
+    });
+    if (startIdx < 0) startIdx = Math.max(0, orderedDates.length - 3);
+
+    const selected = [];
+    for (let i = startIdx; i < orderedDates.length; i += 1) {
+      selected.push(...(byDate.get(orderedDates[i]) || []));
+      if (selected.length >= competition.expectedMatches || i >= startIdx + 2) break;
+    }
+
+    if (selected.length) {
+      const explicitMatchday = selected
+        .map((m) => Number(m.matchday))
+        .filter((n) => Number.isInteger(n) && n > 0)
+        .sort((a, b) => b - a)[0];
+
+      const derivedLigaMxMatchday = deriveLigaMxMatchday(selected);
+      const roundNumber = explicitMatchday || derivedLigaMxMatchday || inferJornadaFromAnchor(selected);
+      return { matches: selected, roundNumber, roundLabel: competition.roundLabel };
+    }
+  }
+
   const buildRounds = (list) => {
     const out = [];
     let current = [];
@@ -365,7 +422,6 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
   const rounds = buildRounds(all);
   if (!rounds.length) return { matches: [], roundNumber: competitionType === 'liga_mx' ? 9 : 1, roundLabel: competition.roundLabel };
 
-  const now = Date.now();
   let selected = null;
 
   const withLive = rounds.find((r) => r.some((m) => {
@@ -381,42 +437,6 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
   }
 
   if (!selected) selected = rounds[rounds.length - 1];
-
-  // Liga MX can have small carry-over fixtures from previous jornada.
-  // If we landed on a partial/older block but the next block is near-complete,
-  // prefer the next block so dashboard shows the upcoming jornada (e.g. 12, not 11 leftovers).
-  if (competitionType === 'liga_mx') {
-    const selectedIdx = rounds.findIndex((r) => r === selected);
-    const nextRound = selectedIdx >= 0 ? rounds[selectedIdx + 1] : null;
-    const selectedFinished = selected.filter((m) => m.status === 'finished').length;
-    const selectedFirstKick = Math.min(...selected.map((m) => new Date(m.kickoff_at).getTime()).filter(Number.isFinite));
-    const selectedIsPartial = selected.length < competition.expectedMatches;
-    const selectedLooksLikeCarryOver = selectedIsPartial && (selectedFinished > 0 || (Number.isFinite(selectedFirstKick) && selectedFirstKick < now - (12 * 60 * 60 * 1000)));
-    const nextLooksFull = !!nextRound && nextRound.length >= Math.max(8, competition.expectedMatches - 1);
-    if (selectedLooksLikeCarryOver && nextLooksFull) selected = nextRound;
-
-    const upcomingRounds = rounds.filter((r) => r.some((m) => {
-      const t = new Date(m.kickoff_at).getTime();
-      return Number.isFinite(t) && t >= now - (6 * 60 * 60 * 1000);
-    }));
-    const fullestUpcoming = upcomingRounds.sort((a, b) => b.length - a.length)[0];
-    if (fullestUpcoming && fullestUpcoming.length > selected.length && fullestUpcoming.length >= Math.max(8, competition.expectedMatches - 1)) {
-      selected = fullestUpcoming;
-    }
-  }
-
-  if (selected.length < Math.max(2, competition.expectedMatches - 1)) {
-    const upcomingAll = all.filter((m) => new Date(m.kickoff_at).getTime() >= now - (6 * 60 * 60 * 1000));
-    let best = selected;
-    for (let offset = 0; offset <= Math.min(3, Math.max(0, upcomingAll.length - 1)); offset++) {
-      const candidateRounds = buildRounds(upcomingAll.slice(offset));
-      const first = candidateRounds[0];
-      if (!first) continue;
-      if (first.length > best.length) best = first;
-      if (best.length >= competition.expectedMatches) break;
-    }
-    selected = best;
-  }
 
   const explicitMatchday = selected
     .map((m) => Number(m.matchday))
