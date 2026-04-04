@@ -457,20 +457,45 @@ function lockPoolMatches(poolId, matches) {
 }
 
 function getPoolMatches(poolId) {
-  return db.prepare(`
+  const rows = db.prepare(`
     SELECT m.*
     FROM pool_matches pm
     JOIN matches m ON m.id = pm.match_id
     WHERE pm.pool_id = ?
-      AND m.id IN (
-        SELECT MIN(m2.id)
-        FROM pool_matches pm2
-        JOIN matches m2 ON m2.id = pm2.match_id
-        WHERE pm2.pool_id = ?
-        GROUP BY LOWER(TRIM(m2.home_team)), LOWER(TRIM(m2.away_team)), m2.kickoff_at
-      )
     ORDER BY m.kickoff_at ASC, m.id ASC
-  `).all(poolId, poolId);
+  `).all(poolId);
+
+  const deduped = [];
+  const seen = new Map();
+
+  for (const row of rows) {
+    const home = normalizeTeamName(row.home_team);
+    const away = normalizeTeamName(row.away_team);
+    const kickoffMs = new Date(row.kickoff_at).getTime();
+    const roundedKickoff = Number.isFinite(kickoffMs)
+      ? Math.round(kickoffMs / (15 * 60 * 1000)) * (15 * 60 * 1000)
+      : row.kickoff_at;
+    const key = `${home}|${away}|${roundedKickoff}`;
+
+    const existingIdx = seen.get(key);
+    if (existingIdx === undefined) {
+      seen.set(key, deduped.length);
+      deduped.push(row);
+      continue;
+    }
+
+    const existing = deduped[existingIdx];
+    const existingLive = existing.status === 'live' || existing.status === 'finished';
+    const currentLive = row.status === 'live' || row.status === 'finished';
+    const existingHasScore = existing.home_score !== null && existing.away_score !== null;
+    const currentHasScore = row.home_score !== null && row.away_score !== null;
+
+    if ((!existingLive && currentLive) || (!existingHasScore && currentHasScore) || row.id < existing.id) {
+      deduped[existingIdx] = row;
+    }
+  }
+
+  return deduped;
 }
 
 function shouldRunFrequentSyncNow() {
