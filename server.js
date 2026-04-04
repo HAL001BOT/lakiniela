@@ -462,7 +462,7 @@ function cleanupPoolDuplicateMatches(poolId) {
     FROM pool_matches pm
     JOIN matches m ON m.id = pm.match_id
     WHERE pm.pool_id = ?
-    ORDER BY m.kickoff_at ASC, m.id ASC, pm.id ASC
+    ORDER BY LOWER(TRIM(m.home_team)) ASC, LOWER(TRIM(m.away_team)) ASC, m.kickoff_at ASC, m.id ASC, pm.id ASC
   `).all(poolId);
 
   const keepByKey = new Map();
@@ -473,7 +473,7 @@ function cleanupPoolDuplicateMatches(poolId) {
     const away = normalizeTeamName(row.away_team);
     const kickoffMs = new Date(row.kickoff_at).getTime();
     const roundedKickoff = Number.isFinite(kickoffMs)
-      ? Math.floor(kickoffMs / (30 * 60 * 1000)) * (30 * 60 * 1000)
+      ? Math.floor(kickoffMs / (60 * 60 * 1000)) * (60 * 60 * 1000)
       : row.kickoff_at;
     const key = `${home}|${away}|${roundedKickoff}`;
 
@@ -512,13 +512,27 @@ function cleanupPoolDuplicateMatches(poolId) {
 
 function getPoolMatches(poolId) {
   cleanupPoolDuplicateMatches(poolId);
-  return db.prepare(`
+  const rows = db.prepare(`
     SELECT m.*
     FROM pool_matches pm
     JOIN matches m ON m.id = pm.match_id
     WHERE pm.pool_id = ?
     ORDER BY m.kickoff_at ASC, m.id ASC
   `).all(poolId);
+
+  const out = [];
+  const seen = new Set();
+  for (const row of rows) {
+    const kickoffMs = new Date(row.kickoff_at).getTime();
+    const roundedKickoff = Number.isFinite(kickoffMs)
+      ? Math.floor(kickoffMs / (60 * 60 * 1000)) * (60 * 60 * 1000)
+      : row.kickoff_at;
+    const key = `${normalizeTeamName(row.home_team)}|${normalizeTeamName(row.away_team)}|${roundedKickoff}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(row);
+  }
+  return out;
 }
 
 function shouldRunFrequentSyncNow() {
