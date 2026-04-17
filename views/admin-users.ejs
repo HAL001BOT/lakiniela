@@ -49,6 +49,29 @@
 <% }) %>
 </div>
 </section>
+
+<section class='card'><h3>Pools</h3>
+<div class='list'>
+<% (pools || []).forEach(p => { %>
+  <div class='pool-item'>
+    <strong><%= p.name %></strong>
+    <span>
+      <%= p.code %> ·
+      <%= p.competition_type === 'champions_league' ? 'Champions League' : 'Liga MX' %> ·
+      owner: <%= p.owner_name || 'unknown' %> ·
+      <%= p.members %> members
+    </span>
+    <div class='inline'>
+      <form method='post' action='/admin/pools/<%= p.id %>/delete' class='confirmable' data-confirm='Delete this pool and all its predictions?'>
+        <input type='hidden' name='_csrf' value='<%= csrfToken %>' />
+        <button style='background:#b4233c'>Delete pool</button>
+      </form>
+    </div>
+  </div>
+<% }) %>
+<% if (!(pools || []).length) { %><p class='muted'>No pools found.</p><% } %>
+</div>
+</section>
 </main>
 <script src='/app.js' defer></script>
 </body></html>
