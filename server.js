@@ -352,7 +352,7 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
     });
     const dateKey = (iso) => chicagoDate.format(new Date(iso));
     const weekdayKey = (iso) => chicagoWeekday.format(new Date(iso));
-    const allowedDays = new Set(['Fri', 'Sat', 'Sun']);
+    const allowedDays = new Set(['Tue', 'Wed', 'Fri', 'Sat', 'Sun']);
 
     const weekendMatches = all.filter((m) => {
       const day = weekdayKey(m.kickoff_at);
@@ -377,7 +377,7 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
     const selected = [];
     for (let i = startIdx; i < orderedDates.length; i += 1) {
       selected.push(...(byDate.get(orderedDates[i]) || []));
-      if (selected.length >= competition.expectedMatches || i >= startIdx + 2) break;
+      if (selected.length >= competition.expectedMatches || i >= startIdx + 4) break;
     }
 
     if (selected.length) {
