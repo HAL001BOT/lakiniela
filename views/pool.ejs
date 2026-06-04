@@ -17,7 +17,7 @@
 </li>
 <% }) %>
 </ol></section>
-<section class='card'><h3>Predictions · <%= pool.competition_type === 'world_cup_2026' ? 'All World Cup Matches' : 'Current / Next Matchday' %></h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>
+<section class='card'><h3>Predictions · <%= pool.competition_type === 'world_cup_2026' ? 'World Cup First Stage' : 'Current / Next Matchday' %></h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>
 <div class='invite-row'>
   <input class='invite-link' id='invite-link' readonly value='<%= inviteLink %>' />
   <button type='button' id='copy-invite'>Copy invite</button>

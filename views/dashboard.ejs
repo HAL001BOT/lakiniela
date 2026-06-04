@@ -42,7 +42,7 @@
 <% if (!championsMatches.length) { %><p class='muted'>No Champions League matches available yet. Sync will populate when ESPN posts them.</p><% } %>
 </section>
 
-<section class='card'><h3>FIFA World Cup 2026 · <%= worldCupMatchCount || 104 %> Matches</h3>
+<section class='card'><h3>FIFA World Cup 2026 · First Stage · <%= worldCupMatchCount || 72 %> Matches</h3>
 <% worldCupMatches.forEach(m=> { %><div class='match-line'><div class='teams-col'><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.home_logo || "" %>' alt=''/><span><%= m.home_team %></span></div><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.away_logo || "" %>' alt=''/><span><%= m.away_team %></span></div></div><small><%= m.status %> · <%= m.kickoff_local || m.kickoff_at %><% if ((m.status==='live' || m.status==='finished') && m.home_score !== null && m.away_score !== null) { %> · <%= m.home_score %>-<%= m.away_score %><% } %></small></div><% }) %>
 <% if (!worldCupMatches.length) { %><p class='muted'>No World Cup matches available yet. Sync will populate when ESPN posts them.</p><% } %>
 </section>

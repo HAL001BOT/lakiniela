@@ -214,7 +214,7 @@ const COMPETITIONS = {
     key: 'world_cup_2026',
     label: 'FIFA World Cup 2026',
     leagueLabel: 'FIFA World Cup',
-    expectedMatches: 104,
+    expectedMatches: 72,
     roundLabel: 'Matches',
     startDate: '2026-06-11T00:00:00Z',
     endDate: '2026-07-20T00:00:00Z',
@@ -311,6 +311,11 @@ function normalizeTeamName(name = '') {
     .trim();
 }
 
+function hasWorldCupPlaceholderTeam(match) {
+  const teamLine = `${match.home_team || ''} ${match.away_team || ''}`;
+  return /\b(group|winner|runner-up|2nd place|third place|round of|quarterfinal|semifinal|match)\b/i.test(teamLine);
+}
+
 function deriveLigaMxMatchday(matches) {
   if (!matches.length) return null;
 
@@ -361,7 +366,8 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
   if (!all.length) return { matches: [], roundNumber: competitionType === 'liga_mx' ? 9 : 1, roundLabel: competition.roundLabel };
 
   if (competitionType === 'world_cup_2026') {
-    return { matches: all, roundNumber: all.length, roundLabel: competition.roundLabel };
+    const decidedMatches = all.filter((m) => !hasWorldCupPlaceholderTeam(m));
+    return { matches: decidedMatches, roundNumber: decidedMatches.length, roundLabel: competition.roundLabel };
   }
 
   const now = Date.now();
