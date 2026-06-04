@@ -3,7 +3,7 @@
 <main class='grid'>
 <section class='card'><h2>Welcome, <%= user.name %></h2>
 <div class='row'>
-<form method='post' action='/pools/create' class='inline'><input type='hidden' name='_csrf' value='<%= csrfToken %>'/><input name='name' placeholder='New pool name'/><select name='competition_type'><option value='liga_mx'>Liga MX</option><option value='champions_league'>Champions League</option></select><button>Create pool</button></form>
+<form method='post' action='/pools/create' class='inline'><input type='hidden' name='_csrf' value='<%= csrfToken %>'/><input name='name' placeholder='New pool name'/><select name='competition_type'><option value='liga_mx'>Liga MX</option><option value='champions_league'>Champions League</option><option value='world_cup_2026'>FIFA World Cup 2026</option></select><button>Create pool</button></form>
 <form method='post' action='/pools/join' class='inline'><input type='hidden' name='_csrf' value='<%= csrfToken %>'/><input name='code' placeholder='Join code (e.g. A1B2C3)'/><button>Join</button></form>
 </div></section>
 <section class='card'><h3>Total Points Dashboard</h3>
@@ -21,9 +21,9 @@
 <div class='list'>
 <% pools.forEach(p=> { %>
 <a class='pool-item' href='/pools/<%= p.id %>'>
-  <div class='pool-item-head'><img class='pool-item-logo' src='<%= p.competition_type === "champions_league" ? "/img/champions-league.png" : "/img/logo.png" %>' alt='pool logo'/><strong><%= p.name %></strong></div>
+  <div class='pool-item-head'><img class='pool-item-logo' src='<%= competitionLogo(p.competition_type) %>' alt='pool logo'/><strong><%= p.name %></strong></div>
   <div class='pool-meta-row'>
-    <span>Code: <%= p.code %> · <%= p.members %> members · <%= p.competition_type === 'champions_league' ? 'Champions League' : 'Liga MX' %></span>
+    <span>Code: <%= p.code %> · <%= p.members %> members · <%= competitionLabel(p.competition_type) %></span>
     <% if (p.pool_finished && p.winner_name) { %>
       <strong class='pool-winner'><%= p.winner_name %> 👑</strong>
     <% } %>
@@ -40,5 +40,10 @@
 <section class='card'><h3>Champions League · Next Round <%= championsRoundNumber || 1 %></h3>
 <% championsMatches.forEach(m=> { %><div class='match-line'><div class='teams-col'><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.home_logo || "" %>' alt=''/><span><%= m.home_team %></span></div><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.away_logo || "" %>' alt=''/><span><%= m.away_team %></span></div></div><small><%= m.status %> · <%= m.kickoff_local || m.kickoff_at %><% if ((m.status==='live' || m.status==='finished') && m.home_score !== null && m.away_score !== null) { %> · <%= m.home_score %>-<%= m.away_score %><% } %></small></div><% }) %>
 <% if (!championsMatches.length) { %><p class='muted'>No Champions League matches available yet. Sync will populate when ESPN posts them.</p><% } %>
+</section>
+
+<section class='card'><h3>FIFA World Cup 2026 · <%= worldCupMatchCount || 104 %> Matches</h3>
+<% worldCupMatches.forEach(m=> { %><div class='match-line'><div class='teams-col'><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.home_logo || "" %>' alt=''/><span><%= m.home_team %></span></div><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.away_logo || "" %>' alt=''/><span><%= m.away_team %></span></div></div><small><%= m.status %> · <%= m.kickoff_local || m.kickoff_at %><% if ((m.status==='live' || m.status==='finished') && m.home_score !== null && m.away_score !== null) { %> · <%= m.home_score %>-<%= m.away_score %><% } %></small></div><% }) %>
+<% if (!worldCupMatches.length) { %><p class='muted'>No World Cup matches available yet. Sync will populate when ESPN posts them.</p><% } %>
 </section>
 </main><script src='/app.js' defer></script></body></html>

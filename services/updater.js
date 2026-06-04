@@ -16,6 +16,19 @@ const COMPETITIONS = {
     dateLookbackDays: 7,
     dateAheadDays: 45,
   },
+  WORLD_CUP_2026: {
+    key: 'world_cup_2026',
+    leagueLabel: 'FIFA World Cup',
+    espnPath: 'fifa.world',
+    dateRanges: [
+      ['20260611', '20260617'],
+      ['20260618', '20260624'],
+      ['20260625', '20260701'],
+      ['20260702', '20260708'],
+      ['20260709', '20260715'],
+      ['20260716', '20260719'],
+    ],
+  },
 };
 
 function resultPoints(predHome, predAway, realHome, realAway) {
@@ -89,17 +102,10 @@ function upsertMatch(match) {
   return { created: true, id: info.lastInsertRowid };
 }
 
-async function fetchEspnCompetition(config) {
-  const now = new Date();
-  const from = new Date(now);
-  from.setDate(from.getDate() - (config.dateLookbackDays || 7));
-  const to = new Date(now);
-  to.setDate(to.getDate() + (config.dateAheadDays || 21));
-  const fmt = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
-
+async function fetchEspnCompetitionRange(config, dates) {
   const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${config.espnPath}/scoreboard`;
   const { data } = await axios.get(url, {
-    params: { dates: `${fmt(from)}-${fmt(to)}` },
+    params: { dates },
     timeout: 20000,
   });
 
@@ -137,6 +143,26 @@ async function fetchEspnCompetition(config) {
   });
 }
 
+async function fetchEspnCompetition(config) {
+  const fmt = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
+
+  if (Array.isArray(config.dateRanges) && config.dateRanges.length) {
+    const byId = new Map();
+    for (const [from, to] of config.dateRanges) {
+      const fixtures = await fetchEspnCompetitionRange(config, `${from}-${to}`);
+      for (const fixture of fixtures) byId.set(fixture.externalId, fixture);
+    }
+    return [...byId.values()].sort((a, b) => new Date(a.kickoffAt) - new Date(b.kickoffAt));
+  }
+
+  const now = new Date();
+  const from = new Date(now);
+  from.setDate(from.getDate() - (config.dateLookbackDays || 7));
+  const to = new Date(now);
+  to.setDate(to.getDate() + (config.dateAheadDays || 21));
+  return fetchEspnCompetitionRange(config, `${fmt(from)}-${fmt(to)}`);
+}
+
 async function syncCompetition(config) {
   const source = 'espn-public';
   const fixtures = await fetchEspnCompetition(config);
@@ -164,10 +190,15 @@ async function syncChampionsLeagueScores() {
   return syncCompetition(COMPETITIONS.CHAMPIONS_LEAGUE);
 }
 
+async function syncWorldCupScores() {
+  return syncCompetition(COMPETITIONS.WORLD_CUP_2026);
+}
+
 module.exports = {
   resultPoints,
   recalcPointsForMatch,
   syncLigaMxScores,
   syncChampionsLeagueScores,
+  syncWorldCupScores,
   COMPETITIONS,
 };

@@ -1,10 +1,11 @@
 # LaKiniela ⚽
 
-Modern Liga MX pool app (web MVP).
+Modern soccer pool app (web MVP).
 
 ## What it does
 - User signup/login
 - Create pool or join with code
+- Choose Liga MX, Champions League, or FIFA World Cup 2026
 - Enter score predictions per match
 - Auto scoring rules:
   - **3 points** = correct match result (win/draw/loss)

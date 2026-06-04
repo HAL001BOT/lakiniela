@@ -6,7 +6,7 @@ const cron = require('node-cron');
 const helmet = require('helmet');
 const { z } = require('zod');
 const db = require('./db');
-const { recalcPointsForMatch, syncLigaMxScores, syncChampionsLeagueScores } = require('./services/updater');
+const { recalcPointsForMatch, syncLigaMxScores, syncChampionsLeagueScores, syncWorldCupScores } = require('./services/updater');
 
 const app = express();
 const PORT = process.env.PORT || 3090;
@@ -203,17 +203,35 @@ const registerSchema = z.object({
 const loginSchema = z.object({ username: z.string().trim().min(1), password: z.string().min(1) });
 const createPoolSchema = z.object({
   name: z.string().trim().min(1).max(80),
-  competition_type: z.enum(['liga_mx', 'champions_league']).default('liga_mx'),
+  competition_type: z.enum(['liga_mx', 'champions_league', 'world_cup_2026']).default('liga_mx'),
 });
 const joinPoolSchema = z.object({ code: z.string().trim().min(4).max(16) });
 const predictionSchema = z.object({ pred_home: z.coerce.number().int().min(0).max(30), pred_away: z.coerce.number().int().min(0).max(30) });
 const COMPETITIONS = {
   liga_mx: { key: 'liga_mx', label: 'Liga MX', leagueLabel: 'Liga MX', expectedMatches: 9, roundLabel: 'Jornada' },
   champions_league: { key: 'champions_league', label: 'Champions League', leagueLabel: 'UEFA Champions League', expectedMatches: 4, roundLabel: 'Round' },
+  world_cup_2026: {
+    key: 'world_cup_2026',
+    label: 'FIFA World Cup 2026',
+    leagueLabel: 'FIFA World Cup',
+    expectedMatches: 104,
+    roundLabel: 'Matches',
+    startDate: '2026-06-11T00:00:00Z',
+    endDate: '2026-07-20T00:00:00Z',
+  },
 };
 
 function getCompetition(type) {
   return COMPETITIONS[type] || COMPETITIONS.liga_mx;
+}
+
+function competitionLabel(type) {
+  return getCompetition(type).label;
+}
+
+function competitionLogo(type) {
+  if (type === 'champions_league') return '/img/champions-league.png';
+  return '/img/logo.png';
 }
 
 function parseBody(schema, raw) {
@@ -325,17 +343,26 @@ function deriveLigaMxMatchday(matches) {
 
 function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
   const competition = getCompetition(competitionType);
+  const windowClause = competition.startDate && competition.endDate
+    ? 'AND kickoff_at >= ? AND kickoff_at < ?'
+    : "AND kickoff_at >= datetime('now', '-7 days') AND kickoff_at <= datetime('now', '+45 days')";
+  const params = competition.startDate && competition.endDate
+    ? [competition.leagueLabel, competition.startDate, competition.endDate]
+    : [competition.leagueLabel];
   const all = db.prepare(`
     SELECT *
     FROM matches
     WHERE external_id LIKE 'espn:%'
       AND league = ?
-      AND kickoff_at >= datetime('now', '-7 days')
-      AND kickoff_at <= datetime('now', '+45 days')
+      ${windowClause}
     ORDER BY kickoff_at ASC
-  `).all(competition.leagueLabel);
+  `).all(...params);
 
   if (!all.length) return { matches: [], roundNumber: competitionType === 'liga_mx' ? 9 : 1, roundLabel: competition.roundLabel };
+
+  if (competitionType === 'world_cup_2026') {
+    return { matches: all, roundNumber: all.length, roundLabel: competition.roundLabel };
+  }
 
   const now = Date.now();
 
@@ -691,11 +718,16 @@ app.get('/dashboard', auth, (req, res) => {
 
   const ligaMxView = getUpcomingUniqueScheduledMatches('liga_mx');
   const championsView = getUpcomingUniqueScheduledMatches('champions_league');
+  const worldCupView = getUpcomingUniqueScheduledMatches('world_cup_2026');
   const nextMatches = ligaMxView.matches.map((m) => ({
     ...m,
     kickoff_local: formatCentral(m.kickoff_at),
   }));
   const championsMatches = championsView.matches.map((m) => ({
+    ...m,
+    kickoff_local: formatCentral(m.kickoff_at),
+  }));
+  const worldCupMatches = worldCupView.matches.map((m) => ({
     ...m,
     kickoff_local: formatCentral(m.kickoff_at),
   }));
@@ -706,7 +738,11 @@ app.get('/dashboard', auth, (req, res) => {
     jornadaNumber: ligaMxView.roundNumber,
     championsMatches,
     championsRoundNumber: championsView.roundNumber,
+    worldCupMatches,
+    worldCupMatchCount: worldCupView.roundNumber,
     isAdmin: req.session.user.role === 'admin',
+    competitionLabel,
+    competitionLogo,
   });
 });
 
@@ -883,7 +919,7 @@ app.get('/pools/:id', auth, (req, res) => {
   const proto = req.get('x-forwarded-proto') || req.protocol;
   const inviteLink = `${proto}://${req.get('host')}/invite/${pool.code}`;
 
-  res.render('pool', { pool, matches, predByMatch, standings, poolFinished, nowMs: Date.now(), inviteLink });
+  res.render('pool', { pool, matches, predByMatch, standings, poolFinished, nowMs: Date.now(), inviteLink, competitionLogo });
 });
 
 app.get('/pools/:id/users/:userId/picks', auth, (req, res) => {
@@ -974,9 +1010,9 @@ app.post('/admin/sync', async (req, res) => {
     return res.status(401).json({ ok: false });
   }
   try {
-    const [ligaMx, champions] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores()]);
-    logEvent('admin.sync.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0 }, req, true);
-    return res.json({ ok: true, ligaMx, champions });
+    const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
+    logEvent('admin.sync.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0 }, req, true);
+    return res.json({ ok: true, ligaMx, champions, worldCup });
   } catch (e) {
     logEvent('admin.sync.failed', { error: e.message }, req, false);
     return res.status(500).json({ ok: false, error: e.message });
@@ -986,8 +1022,8 @@ app.post('/admin/sync', async (req, res) => {
 cron.schedule('*/5 * * * *', async () => {
   try {
     if (!shouldRunFrequentSyncNow()) return;
-    const [ligaMx, champions] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores()]);
-    logEvent('sync.auto.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0 }, null, true);
+    const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
+    logEvent('sync.auto.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0 }, null, true);
   } catch (e) {
     logEvent('sync.auto.failed', { error: e.message }, null, false);
   }
@@ -1001,8 +1037,8 @@ cron.schedule('*/15 * * * *', () => {
 
 (async () => {
   try {
-    const [ligaMx, champions] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores()]);
-    logEvent('sync.startup.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0 }, null, true);
+    const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
+    logEvent('sync.startup.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0 }, null, true);
   } catch (e) {
     logEvent('sync.startup.failed', { error: e.message }, null, false);
   }

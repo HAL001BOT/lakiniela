@@ -1,5 +1,5 @@
 <!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260316share2'/></head><body>
-<header class='top'><a href='/dashboard'>← Dashboard</a><div class='brand'><img class='brand-logo' src='<%= pool.competition_type === "champions_league" ? "/img/champions-league.png" : "/img/logo.png" %>' alt='pool logo'/><h1><%= pool.name %></h1></div><span class='badge'>Code: <%= pool.code %></span></header>
+<header class='top'><a href='/dashboard'>← Dashboard</a><div class='brand'><img class='brand-logo' src='<%= competitionLogo(pool.competition_type) %>' alt='pool logo'/><h1><%= pool.name %></h1></div><span class='badge'>Code: <%= pool.code %></span></header>
 <main class='grid two'>
 <section class='card' id='standings-card'>
 <div class='standings-head'>
@@ -17,7 +17,7 @@
 </li>
 <% }) %>
 </ol></section>
-<section class='card'><h3>Predictions · Current / Next Matchday</h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>
+<section class='card'><h3>Predictions · <%= pool.competition_type === 'world_cup_2026' ? 'All World Cup Matches' : 'Current / Next Matchday' %></h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>
 <div class='invite-row'>
   <input class='invite-link' id='invite-link' readonly value='<%= inviteLink %>' />
   <button type='button' id='copy-invite'>Copy invite</button>
@@ -115,7 +115,7 @@ if (shareBtn && standingsList) {
             <h2>Standings</h2>
             <p><%= pool.name %> · Code <%= pool.code %></p>
           </div>
-          <img src="<%= pool.competition_type === 'champions_league' ? '/img/champions-league.png' : '/img/logo.png' %>" alt="pool" />
+          <img src="<%= competitionLogo(pool.competition_type) %>" alt="pool" />
         </div>
         <ol>
           ${rows.map((r, i) => `

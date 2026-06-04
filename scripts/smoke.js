@@ -21,7 +21,10 @@ function main() {
 
   // Require core modules to catch syntax/runtime import issues early.
   require('../db');
-  require('../services/updater');
+  const updater = require('../services/updater');
+  if (typeof updater.syncWorldCupScores !== 'function') {
+    throw new Error('Missing World Cup sync export');
+  }
 
   console.log('Smoke checks passed.');
 }
