@@ -231,7 +231,7 @@ function competitionLabel(type) {
 
 function competitionLogo(type) {
   if (type === 'champions_league') return '/img/champions-league.png';
-  if (type === 'world_cup_2026') return '/img/world-cup-2026.png';
+  if (type === 'world_cup_2026') return '/img/world-cup-2026.png?v=official-20260611';
   return '/img/logo.png';
 }
 
