@@ -13,12 +13,12 @@
   <meta name='twitter:title' content='Join pool: <%= pool.name %>' />
   <meta name='twitter:description' content='You are invited to join "<%= pool.name %>" on LaKiniela.' />
   <meta name='twitter:image' content='<%= ogImage %>' />
-  <link rel='icon' href='/img/logo.png'/>
-  <link rel='stylesheet' href='/style.css?v=20260309invite1'/>
+  <link rel='icon' href='<%= logoPath || "/img/logo.png" %>'/>
+  <link rel='stylesheet' href='/style.css?v=20260309invite2'/>
 </head>
 <body class='auth'>
   <div class='card auth-card'>
-    <img class='brand-logo big' src='/img/logo.png' alt='lakiniela logo'/>
+    <img class='brand-logo big' src='<%= logoPath || "/img/logo.png" %>' alt='pool logo'/>
     <h1><%= pool.name %></h1>
     <p>You're invited to join this pool.</p>
     <a href='/login'><button type='button'>Login to join</button></a>

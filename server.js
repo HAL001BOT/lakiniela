@@ -231,6 +231,7 @@ function competitionLabel(type) {
 
 function competitionLogo(type) {
   if (type === 'champions_league') return '/img/champions-league.png';
+  if (type === 'world_cup_2026') return '/img/world-cup-2026.svg';
   return '/img/logo.png';
 }
 
@@ -885,8 +886,9 @@ app.get(['/invite/:code', '/join/:code'], (req, res) => {
     const proto = req.get('x-forwarded-proto') || req.protocol;
     const baseUrl = `${proto}://${req.get('host')}`;
     const inviteUrl = `${baseUrl}/invite/${inviteCode}`;
-    const ogImage = `${baseUrl}/img/logo.png`;
-    return res.render('invite-public', { pool, inviteUrl, ogImage });
+    const logoPath = competitionLogo(pool.competition_type);
+    const ogImage = `${baseUrl}${logoPath}`;
+    return res.render('invite-public', { pool, inviteUrl, ogImage, logoPath });
   }
 
   db.prepare('INSERT OR IGNORE INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(pool.id, req.session.user.id);
