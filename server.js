@@ -296,26 +296,6 @@ function poolStandings(poolId) {
   `).all(poolId);
 }
 
-function normalizeDisplayName(name = '') {
-  return String(name || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim();
-}
-
-function standingsForViewer(poolId, viewer = {}) {
-  const hiddenViewerNames = new Set(['pablo', 'mudo', 'jesus pedro']);
-  const hiddenPlayerName = 'richard hdz';
-  const standings = poolStandings(poolId);
-  const viewerName = normalizeDisplayName(viewer.name);
-
-  if (!hiddenViewerNames.has(viewerName)) return standings;
-
-  return standings.filter((standing) => normalizeDisplayName(standing.name) !== hiddenPlayerName);
-}
-
 function inferJornadaFromAnchor(matches) {
   // Anchor requested by product: current visible matchday is Jornada 9.
   const anchorJornada = 9;
@@ -973,7 +953,7 @@ app.get('/pools/:id', auth, (req, res) => {
   }));
   const preds = db.prepare('SELECT * FROM predictions WHERE pool_id = ? AND user_id = ?').all(pool.id, req.session.user.id);
   const predByMatch = new Map(preds.map((p) => [p.match_id, p]));
-  const standings = standingsForViewer(pool.id, req.session.user);
+  const standings = poolStandings(pool.id);
   const poolFinished = matches.length > 0 && matches.every((m) => m.status === 'finished');
   const proto = req.get('x-forwarded-proto') || req.protocol;
   const inviteLink = `${proto}://${req.get('host')}/invite/${pool.code}`;
