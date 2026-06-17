@@ -68,7 +68,7 @@ h1,h2,h3{margin:.2rem 0 .7rem;letter-spacing:.2px}
 .auth-card p{text-align:center;color:#c8d5fa;margin-top:0}
 .auth-card a{display:inline-block;margin-top:8px}
 
-input,button{
+input,button,select{
   padding:11px 12px;border-radius:12px;border:1px solid #3653a8;
   background:#0a1437;color:var(--txt);font-size:.98rem;
 }
@@ -184,6 +184,9 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .points-good{color:var(--ok)}
 .points-zero{color:var(--muted)}
 .error{background:#4d1f39;border:1px solid #d8689f;padding:8px;border-radius:10px}
+.success{background:#123f35;border:1px solid #2fe2a8;padding:8px;border-radius:10px}
+.admin-create-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.admin-create-form button{grid-column:span 2}
 
 .auth-card form,
 .auth-card form input,
@@ -195,6 +198,8 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .grid.two{grid-template-columns:1fr}
   .inline{flex-direction:column;align-items:stretch}
   .inline input,.inline button{width:100%}
+  .admin-create-form{grid-template-columns:1fr}
+  .admin-create-form button{grid-column:auto}
   .invite-row{flex-direction:column;align-items:stretch}
   .invite-row button{width:100%}
   .match-line{flex-direction:column;align-items:stretch}

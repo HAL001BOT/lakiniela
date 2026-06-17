@@ -200,6 +200,9 @@ const registerSchema = z.object({
   email: z.string().trim().email().max(160),
   password: z.string().min(8).max(128),
 });
+const adminCreateUserSchema = registerSchema.extend({
+  role: z.enum(['user', 'admin']).default('user'),
+});
 const loginSchema = z.object({ username: z.string().trim().min(1), password: z.string().min(1) });
 const createPoolSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -785,7 +788,35 @@ app.get('/admin/users', admin, (req, res) => {
     poolsByUser.get(m.user_id).push(m);
   });
 
-  res.render('admin-users', { users, me: req.session.user, poolsByUser, pools });
+  const errorMessages = {
+    invalid: 'Invalid fields. Username must be 3-30 lowercase letters, numbers, or underscores. Password must be at least 8 characters.',
+    duplicate: 'Username or email already in use.',
+  };
+
+  res.render('admin-users', {
+    users,
+    me: req.session.user,
+    poolsByUser,
+    pools,
+    createdUser: typeof req.query.created === 'string' ? req.query.created : null,
+    error: errorMessages[req.query.error] || null,
+  });
+});
+
+app.post('/admin/users/create', admin, (req, res) => {
+  const input = parseBody(adminCreateUserSchema, req.body);
+  if (!input) return res.redirect('/admin/users?error=invalid');
+
+  try {
+    const hash = bcrypt.hashSync(input.password, 10);
+    const info = db.prepare('INSERT INTO users (name, username, email, password_hash, role) VALUES (?, ?, ?, ?, ?)')
+      .run(input.name, input.username, input.email.toLowerCase(), hash, input.role);
+    logEvent('admin.user.create', { targetUserId: info.lastInsertRowid, username: input.username, role: input.role }, req, true);
+    res.redirect(`/admin/users?created=${encodeURIComponent(input.username)}`);
+  } catch {
+    logEvent('admin.user.create.failed', { username: input.username, role: input.role }, req, false);
+    res.redirect('/admin/users?error=duplicate');
+  }
 });
 
 app.post('/admin/users/:id/role', admin, (req, res) => {
