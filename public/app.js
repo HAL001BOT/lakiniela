@@ -12,3 +12,7 @@ document.addEventListener('submit', (event) => {
   const message = form.getAttribute('data-confirm') || 'Are you sure?';
   if (!window.confirm(message)) event.preventDefault();
 });
+
+document.querySelectorAll('[data-auto-submit]').forEach((control) => {
+  control.addEventListener('change', () => control.form?.requestSubmit());
+});

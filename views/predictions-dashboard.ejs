@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang='es'>
+<head>
+  <meta charset='utf-8'/>
+  <meta name='viewport' content='width=device-width,initial-scale=1'/>
+  <title>Pronósticos · <%= pool.name %></title>
+  <link rel='icon' href='/img/logo.png'/>
+  <link rel='stylesheet' href='/style.css?v=20260618pronosticos1'/>
+</head>
+<body>
+  <header class='top'>
+    <a href='/pools/<%= pool.id %>'>← Volver al pool</a>
+    <div class='brand'>
+      <img class='brand-logo' src='<%= competitionLogo(pool.competition_type) %>' alt='logo del torneo'/>
+      <h1><%= pool.name %></h1>
+    </div>
+    <span class='badge'>Pronósticos</span>
+  </header>
+
+  <main class='predictions-dashboard-page'>
+    <section class='card predictions-dashboard-card'>
+      <div class='predictions-dashboard-title'>
+        <div>
+          <h2>Pronósticos</h2>
+          <p class='muted'>Resultados y picks de todos los participantes.</p>
+        </div>
+        <% if (rounds.length > 1) { %>
+          <form method='get' class='round-picker'>
+            <label for='round'>Jornada</label>
+            <select id='round' name='round' data-auto-submit>
+              <% rounds.forEach(round => { %>
+                <option value='<%= round.key %>' <%= round.key === selectedRound.key ? 'selected' : '' %>><%= round.label %></option>
+              <% }) %>
+            </select>
+          </form>
+        <% } else { %>
+          <div class='round-label'><span>Jornada</span><strong><%= selectedRound.label %></strong></div>
+        <% } %>
+      </div>
+
+      <div class='prediction-legend' aria-label='Leyenda'>
+        <span><i class='legend-swatch legend-exact'></i> Marcador exacto</span>
+        <span><i class='legend-swatch legend-result'></i> Resultado correcto</span>
+        <span><i class='legend-swatch legend-miss'></i> Fallo</span>
+      </div>
+
+      <% if (matches.length) { %>
+        <div class='prediction-matrix-wrap'>
+          <table class='prediction-matrix'>
+            <thead>
+              <tr>
+                <th class='points-column'>Puntos</th>
+                <th class='user-column'>Usuario</th>
+                <% matches.forEach(match => { %>
+                  <th class='match-column'>
+                    <div class='matrix-fixture'>
+                      <div class='matrix-teams' title='<%= match.home_team %> vs <%= match.away_team %>'>
+                        <img class='matrix-team-logo hide-on-error' src='<%= match.home_logo || "" %>' alt='<%= match.home_team %>'/>
+                        <span>vs</span>
+                        <img class='matrix-team-logo hide-on-error' src='<%= match.away_logo || "" %>' alt='<%= match.away_team %>'/>
+                      </div>
+                      <% if ((match.status === 'finished' || match.status === 'live') && match.home_score !== null && match.away_score !== null) { %>
+                        <strong class='matrix-result'><%= match.home_score %> - <%= match.away_score %></strong>
+                        <% if (match.status === 'live') { %><small class='matrix-live'>EN VIVO</small><% } %>
+                      <% } else { %>
+                        <strong class='matrix-result matrix-result-pending'>—</strong>
+                      <% } %>
+                      <small class='matrix-date'><%= match.kickoff_local %></small>
+                    </div>
+                  </th>
+                <% }) %>
+              </tr>
+            </thead>
+            <tbody>
+              <% rows.forEach((member, index) => { %>
+                <tr>
+                  <td class='points-column'><strong><%= member.points %></strong></td>
+                  <th scope='row' class='user-column'>
+                    <a href='/pools/<%= pool.id %>/users/<%= member.id %>/picks'><%= member.name %></a>
+                    <% if (index === 0) { %><span class='matrix-leader' aria-label='Líder'>👑</span><% } %>
+                  </th>
+                  <% member.predictions.forEach(entry => { %>
+                    <td class='pick-cell'>
+                      <% if (entry.prediction) { %>
+                        <span class='matrix-pick pick-<%= entry.status %>'>
+                          <%= entry.prediction.pred_home %> - <%= entry.prediction.pred_away %>
+                        </span>
+                      <% } else { %>
+                        <span class='matrix-pick pick-empty'>—</span>
+                      <% } %>
+                    </td>
+                  <% }) %>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } else { %>
+        <p class='muted'>Todavía no hay partidos disponibles para esta jornada.</p>
+      <% } %>
+    </section>
+  </main>
+
+  <script src='/app.js' defer></script>
+</body>
+</html>

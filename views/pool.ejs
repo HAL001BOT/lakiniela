@@ -4,7 +4,10 @@
 <section class='card' id='standings-card'>
 <div class='standings-head'>
   <h3>Standings</h3>
-  <button type='button' id='share-standings'>Share snapshot</button>
+  <div class='inline standings-actions'>
+    <a class='button-link' href='/pools/<%= pool.id %>/pronosticos'>Pronósticos</a>
+    <button type='button' id='share-standings'>Share snapshot</button>
+  </div>
 </div>
 <ol class='standings' id='standings-list'>
 <% standings.forEach((s, i) => { %>

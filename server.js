@@ -7,6 +7,7 @@ const helmet = require('helmet');
 const { z } = require('zod');
 const db = require('./db');
 const { recalcPointsForMatch, syncLigaMxScores, syncChampionsLeagueScores, syncWorldCupScores } = require('./services/updater');
+const { predictionStatus, groupPredictionMatches } = require('./services/predictions-dashboard');
 
 const app = express();
 const PORT = process.env.PORT || 3090;
@@ -959,6 +960,68 @@ app.get('/pools/:id', auth, (req, res) => {
   const inviteLink = `${proto}://${req.get('host')}/invite/${pool.code}`;
 
   res.render('pool', { pool, matches, predByMatch, standings, poolFinished, nowMs: Date.now(), inviteLink, competitionLogo });
+});
+
+app.get('/pools/:id/pronosticos', auth, (req, res) => {
+  const pool = db.prepare('SELECT * FROM pools WHERE id = ?').get(req.params.id);
+  if (!pool) return res.status(404).send('Pool not found');
+
+  const viewerMember = db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = ?').get(pool.id, req.session.user.id);
+  if (!viewerMember) return res.status(403).send('Join this pool first.');
+
+  let matches = getPoolMatches(pool.id);
+  if (!matches.length) {
+    const snapshotMatches = getUpcomingUniqueScheduledMatches(pool.competition_type || 'liga_mx').matches;
+    lockPoolMatches(pool.id, snapshotMatches);
+    matches = getPoolMatches(pool.id);
+  }
+
+  const rounds = groupPredictionMatches(matches, pool.competition_type || 'liga_mx');
+  const requestedRound = String(req.query.round || '');
+  const selectedRound = rounds.find((round) => round.key === requestedRound) || rounds[0] || {
+    key: '1',
+    label: 'Jornada 1',
+    matches: [],
+  };
+  const selectedMatchIds = selectedRound.matches.map((match) => match.id);
+
+  const standings = poolStandings(pool.id);
+  const predictions = selectedMatchIds.length
+    ? db.prepare(`
+      SELECT *
+      FROM predictions
+      WHERE pool_id = ?
+        AND match_id IN (${selectedMatchIds.map(() => '?').join(',')})
+    `).all(pool.id, ...selectedMatchIds)
+    : [];
+  const predictionByUserMatch = new Map(
+    predictions.map((prediction) => [`${prediction.user_id}:${prediction.match_id}`, prediction])
+  );
+
+  const rows = standings.map((member) => ({
+    ...member,
+    predictions: selectedRound.matches.map((match) => {
+      const prediction = predictionByUserMatch.get(`${member.id}:${match.id}`) || null;
+      return {
+        prediction,
+        status: predictionStatus(prediction, match),
+      };
+    }),
+  }));
+
+  const roundMatches = selectedRound.matches.map((match) => ({
+    ...match,
+    kickoff_local: formatCentral(match.kickoff_at),
+  }));
+
+  res.render('predictions-dashboard', {
+    pool,
+    rounds,
+    selectedRound,
+    matches: roundMatches,
+    rows,
+    competitionLogo,
+  });
 });
 
 app.get('/pools/:id/users/:userId/picks', auth, (req, res) => {
