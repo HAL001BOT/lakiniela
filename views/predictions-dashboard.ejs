@@ -42,6 +42,7 @@
         <span><i class='legend-swatch legend-exact'></i> Marcador exacto</span>
         <span><i class='legend-swatch legend-result'></i> Resultado correcto</span>
         <span><i class='legend-swatch legend-miss'></i> Fallo</span>
+        <span><i class='legend-swatch legend-hidden'></i> Oculto hasta kickoff</span>
       </div>
 
       <% if (matches.length) { %>
@@ -81,7 +82,9 @@
                   </th>
                   <% member.predictions.forEach(entry => { %>
                     <td class='pick-cell'>
-                      <% if (entry.prediction) { %>
+                      <% if (entry.hidden) { %>
+                        <span class='matrix-pick pick-hidden'>Oculto</span>
+                      <% } else if (entry.prediction) { %>
                         <span class='matrix-pick pick-<%= entry.status %>'>
                           <%= entry.prediction.pred_home %> - <%= entry.prediction.pred_away %>
                         </span>

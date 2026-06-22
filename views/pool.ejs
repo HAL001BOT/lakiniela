@@ -26,6 +26,7 @@
   <button type='button' id='copy-invite'>Copy invite</button>
 </div>
 <div class='list'>
+<% if (matches.length) { %>
 <% matches.forEach(m => { const p = predByMatch.get(m.id); const lockMs = new Date(m.kickoff_at).getTime() - (15 * 60 * 1000); const locked = m.status==='finished' || nowMs >= lockMs; %>
 <div class='prediction' data-match='<%= m.id %>'>
 <div class='prediction-head'>
@@ -65,6 +66,9 @@
 <small class='fixture-meta'><%= m.kickoff_local || m.kickoff_at %></small>
 </div>
 <% }) %>
+<% } else { %>
+  <p class='muted'>No hay partidos pendientes para registrar pronósticos.</p>
+<% } %>
 </div></section>
 </main>
 <script src='/app.js' defer></script>

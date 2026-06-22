@@ -209,6 +209,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .legend-exact{background:var(--ok)}
 .legend-result{background:#ffe58a}
 .legend-miss{background:#fff}
+.legend-hidden{background:#0a1437}
 .prediction-matrix-wrap{overflow:auto;border:1px solid var(--stroke);border-radius:14px;background:var(--card2);overscroll-behavior-inline:contain}
 .prediction-matrix{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;color:var(--txt);background:var(--card2)}
 .prediction-matrix th,.prediction-matrix td{height:60px;padding:7px;border-right:1px solid #2a438f;border-bottom:1px solid #2a438f;text-align:center}
@@ -236,6 +237,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .pick-miss{background:#fff;border-color:#d8689f;color:#b4233c}
 .pick-pending{background:#14235a;border-color:#4665cc;color:#dfe8ff}
 .pick-empty{background:#0a1437;border-color:#2a438f;color:var(--muted)}
+.pick-hidden{background:#0a1437;border-color:#2a438f;color:var(--muted);font-size:.72rem}
 
 .auth-card form,
 .auth-card form input,

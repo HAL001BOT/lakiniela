@@ -285,6 +285,13 @@ function formatCentral(iso) {
   }).format(dt) + ' CT';
 }
 
+function matchHasStarted(match, nowMs = Date.now()) {
+  if (!match) return false;
+  if (match.status === 'live' || match.status === 'finished') return true;
+  const kickoffMs = new Date(match.kickoff_at).getTime();
+  return Number.isFinite(kickoffMs) && nowMs >= kickoffMs;
+}
+
 function poolStandings(poolId) {
   return db.prepare(`
     SELECT u.id, u.name, COALESCE(SUM(p.points),0) points, COUNT(p.id) picks
@@ -948,18 +955,19 @@ app.get('/pools/:id', auth, (req, res) => {
     matches = getPoolMatches(pool.id);
   }
 
-  matches = matches.map((m) => ({
+  const nowMs = Date.now();
+  const poolFinished = matches.length > 0 && matches.every((m) => m.status === 'finished');
+  const visibleMatches = matches.filter((m) => !matchHasStarted(m, nowMs)).map((m) => ({
     ...m,
     kickoff_local: formatCentral(m.kickoff_at),
   }));
   const preds = db.prepare('SELECT * FROM predictions WHERE pool_id = ? AND user_id = ?').all(pool.id, req.session.user.id);
   const predByMatch = new Map(preds.map((p) => [p.match_id, p]));
   const standings = poolStandings(pool.id);
-  const poolFinished = matches.length > 0 && matches.every((m) => m.status === 'finished');
   const proto = req.get('x-forwarded-proto') || req.protocol;
   const inviteLink = `${proto}://${req.get('host')}/invite/${pool.code}`;
 
-  res.render('pool', { pool, matches, predByMatch, standings, poolFinished, nowMs: Date.now(), inviteLink, competitionLogo });
+  res.render('pool', { pool, matches: visibleMatches, predByMatch, standings, poolFinished, nowMs, inviteLink, competitionLogo });
 });
 
 app.get('/pools/:id/pronosticos', auth, (req, res) => {
@@ -998,12 +1006,15 @@ app.get('/pools/:id/pronosticos', auth, (req, res) => {
     predictions.map((prediction) => [`${prediction.user_id}:${prediction.match_id}`, prediction])
   );
 
+  const nowMs = Date.now();
   const rows = standings.map((member) => ({
     ...member,
     predictions: selectedRound.matches.map((match) => {
+      const revealPrediction = matchHasStarted(match, nowMs);
       const prediction = predictionByUserMatch.get(`${member.id}:${match.id}`) || null;
       return {
-        prediction,
+        prediction: revealPrediction ? prediction : null,
+        hidden: !revealPrediction,
         status: predictionStatus(prediction, match),
       };
     }),
