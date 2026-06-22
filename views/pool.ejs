@@ -5,7 +5,9 @@
 <div class='standings-head'>
   <h3>Standings</h3>
   <div class='inline standings-actions'>
-    <a class='button-link' href='/pools/<%= pool.id %>/pronosticos'>Pronósticos</a>
+    <% if (canViewOthersPicks) { %>
+      <a class='button-link' href='/pools/<%= pool.id %>/pronosticos'>Pronósticos</a>
+    <% } %>
     <button type='button' id='share-standings'>Share snapshot</button>
   </div>
 </div>
@@ -13,7 +15,11 @@
 <% standings.forEach((s, i) => { %>
 <li class='<%= i === 0 ? "standing-top" : "" %>' <%= i === 0 ? "style='background:linear-gradient(90deg,rgba(255,215,0,.18),rgba(255,215,0,.04));border:1px solid rgba(255,215,0,.45);border-radius:10px;padding:10px 12px;margin:2px 0 10px;'" : "" %>>
   <span>
-    <a href='/pools/<%= pool.id %>/users/<%= s.id %>/picks'><%= s.name %></a>
+    <% if (canViewOthersPicks) { %>
+      <a href='/pools/<%= pool.id %>/users/<%= s.id %>/picks'><%= s.name %></a>
+    <% } else { %>
+      <span class='standing-name'><%= s.name %></span>
+    <% } %>
     <% if (i === 0 && !poolFinished) { %><span class='leader-badge' style='display:inline-flex;align-items:center;gap:4px;margin-left:8px;font-size:.72rem;padding:2px 8px;border-radius:999px;border:1px solid rgba(255,215,0,.55);background:rgba(255,215,0,.12);color:#ffe58a;'>👑 Top</span><% } %>
   </span>
   <strong><%= s.points %> pts<% if (poolFinished && i === 0) { %> <span aria-label='Winner'>👑</span><% } %></strong>

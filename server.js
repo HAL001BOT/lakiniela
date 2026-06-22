@@ -957,6 +957,7 @@ app.get('/pools/:id', auth, (req, res) => {
 
   const nowMs = Date.now();
   const poolFinished = matches.length > 0 && matches.every((m) => m.status === 'finished');
+  const canViewOthersPicks = matches.some((m) => matchHasStarted(m, nowMs));
   const visibleMatches = matches.filter((m) => !matchHasStarted(m, nowMs)).map((m) => ({
     ...m,
     kickoff_local: formatCentral(m.kickoff_at),
@@ -967,7 +968,7 @@ app.get('/pools/:id', auth, (req, res) => {
   const proto = req.get('x-forwarded-proto') || req.protocol;
   const inviteLink = `${proto}://${req.get('host')}/invite/${pool.code}`;
 
-  res.render('pool', { pool, matches: visibleMatches, predByMatch, standings, poolFinished, nowMs, inviteLink, competitionLogo });
+  res.render('pool', { pool, matches: visibleMatches, predByMatch, standings, poolFinished, canViewOthersPicks, nowMs, inviteLink, competitionLogo });
 });
 
 app.get('/pools/:id/pronosticos', auth, (req, res) => {
@@ -982,6 +983,11 @@ app.get('/pools/:id/pronosticos', auth, (req, res) => {
     const snapshotMatches = getUpcomingUniqueScheduledMatches(pool.competition_type || 'liga_mx').matches;
     lockPoolMatches(pool.id, snapshotMatches);
     matches = getPoolMatches(pool.id);
+  }
+
+  const nowMs = Date.now();
+  if (!matches.some((match) => matchHasStarted(match, nowMs))) {
+    return res.redirect(`/pools/${pool.id}`);
   }
 
   const rounds = groupPredictionMatches(matches, pool.competition_type || 'liga_mx');
@@ -1006,7 +1012,6 @@ app.get('/pools/:id/pronosticos', auth, (req, res) => {
     predictions.map((prediction) => [`${prediction.user_id}:${prediction.match_id}`, prediction])
   );
 
-  const nowMs = Date.now();
   const rows = standings.map((member) => ({
     ...member,
     predictions: selectedRound.matches.map((match) => {
@@ -1055,14 +1060,21 @@ app.get('/pools/:id/users/:userId/picks', auth, (req, res) => {
     matches = getPoolMatches(pool.id);
   }
 
+  const nowMs = Date.now();
+  if (targetUserId !== req.session.user.id && !matches.some((match) => matchHasStarted(match, nowMs))) {
+    return res.redirect(`/pools/${pool.id}`);
+  }
+
   const picks = db.prepare('SELECT * FROM predictions WHERE pool_id = ? AND user_id = ?').all(pool.id, targetUserId);
   const pickByMatch = new Map(picks.map((p) => [p.match_id, p]));
 
-  const rows = matches.map((m) => ({
-    ...m,
-    kickoff_local: formatCentral(m.kickoff_at),
-    pick: pickByMatch.get(m.id) || null,
-  }));
+  const rows = matches
+    .filter((m) => targetUserId === req.session.user.id || matchHasStarted(m, nowMs))
+    .map((m) => ({
+      ...m,
+      kickoff_local: formatCentral(m.kickoff_at),
+      pick: pickByMatch.get(m.id) || null,
+    }));
 
   res.render('pool-user-picks', { pool, targetMember, rows });
 });
