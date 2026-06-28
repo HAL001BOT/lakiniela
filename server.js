@@ -691,6 +691,68 @@ function appendActiveWorldCupRoundToPools(poolName = null) {
   return { pools: pools.length, matchesAdded, normalizedPools };
 }
 
+function applyMundial2026PickCorrections() {
+  const pool = db.prepare("SELECT id, name FROM pools WHERE lower(name) = 'mundial 2026' LIMIT 1").get();
+  if (!pool) return { applied: 0, missing: ['pool:mundial 2026'] };
+
+  const match = db.prepare(`
+    SELECT m.*
+    FROM pool_matches pm
+    JOIN matches m ON m.id = pm.match_id
+    WHERE pm.pool_id = ?
+      AND lower(m.home_team) = 'south africa'
+      AND lower(m.away_team) = 'canada'
+    ORDER BY datetime(m.kickoff_at) DESC
+    LIMIT 1
+  `).get(pool.id);
+  if (!match) return { applied: 0, missing: ['match:South Africa vs Canada'] };
+
+  const corrections = [
+    { aliases: ['pablo'], predHome: 1, predAway: 1 },
+    { aliases: ['admin'], predHome: 0, predAway: 2 },
+    { aliases: ['joaquin', 'joaquín'], predHome: 1, predAway: 2 },
+  ];
+
+  const missing = [];
+  let applied = 0;
+  const findMember = db.prepare(`
+    SELECT u.id, u.name, u.username, u.email
+    FROM pool_members pm
+    JOIN users u ON u.id = pm.user_id
+    WHERE pm.pool_id = ?
+      AND (
+        lower(u.username) = lower(?)
+        OR lower(u.name) = lower(?)
+        OR lower(substr(u.email, 1, instr(u.email, '@') - 1)) = lower(?)
+      )
+    LIMIT 1
+  `);
+
+  const upsert = db.prepare(`
+    INSERT INTO predictions (pool_id, user_id, match_id, pred_home, pred_away)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(pool_id, user_id, match_id)
+    DO UPDATE SET pred_home = excluded.pred_home, pred_away = excluded.pred_away, updated_at = CURRENT_TIMESTAMP
+  `);
+
+  for (const correction of corrections) {
+    const member = correction.aliases
+      .map((alias) => findMember.get(pool.id, alias, alias, alias))
+      .find(Boolean);
+
+    if (!member) {
+      missing.push(`user:${correction.aliases[0]}`);
+      continue;
+    }
+
+    upsert.run(pool.id, member.id, match.id, correction.predHome, correction.predAway);
+    applied += 1;
+  }
+
+  if (match.status === 'finished') recalcPointsForMatch(match.id);
+  return { applied, missing };
+}
+
 function shouldRunFrequentSyncNow() {
   const live = db.prepare(`
     SELECT COUNT(*) c
@@ -1213,8 +1275,9 @@ app.post('/admin/sync', async (req, res) => {
   try {
     const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
     const worldCupPools = appendActiveWorldCupRoundToPools();
-    logEvent('admin.sync.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools }, req, true);
-    return res.json({ ok: true, ligaMx, champions, worldCup, worldCupPools });
+    const mundialCorrections = applyMundial2026PickCorrections();
+    logEvent('admin.sync.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools, mundialCorrections }, req, true);
+    return res.json({ ok: true, ligaMx, champions, worldCup, worldCupPools, mundialCorrections });
   } catch (e) {
     logEvent('admin.sync.failed', { error: e.message }, req, false);
     return res.status(500).json({ ok: false, error: e.message });
@@ -1226,7 +1289,8 @@ cron.schedule('*/5 * * * *', async () => {
     if (!shouldRunFrequentSyncNow()) return;
     const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
     const worldCupPools = appendActiveWorldCupRoundToPools();
-    logEvent('sync.auto.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools }, null, true);
+    const mundialCorrections = applyMundial2026PickCorrections();
+    logEvent('sync.auto.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools, mundialCorrections }, null, true);
   } catch (e) {
     logEvent('sync.auto.failed', { error: e.message }, null, false);
   }
@@ -1242,7 +1306,8 @@ cron.schedule('*/15 * * * *', () => {
   try {
     const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
     const worldCupPools = appendActiveWorldCupRoundToPools();
-    logEvent('sync.startup.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools }, null, true);
+    const mundialCorrections = applyMundial2026PickCorrections();
+    logEvent('sync.startup.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools, mundialCorrections }, null, true);
   } catch (e) {
     logEvent('sync.startup.failed', { error: e.message }, null, false);
   }
