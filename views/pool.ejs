@@ -25,7 +25,50 @@
   <strong><%= s.points %> pts<% if (poolFinished && i === 0) { %> <span aria-label='Winner'>👑</span><% } %></strong>
 </li>
 <% }) %>
-</ol></section>
+</ol>
+<div class='trend-card'>
+  <div class='trend-head'>
+    <h3>Points Progression</h3>
+    <span>Days since start</span>
+  </div>
+  <% if (pointsProgression && pointsProgression.hasData) { %>
+    <% const chart = { w: 720, h: 300, left: 54, right: 18, top: 18, bottom: 48 }; %>
+    <% const plotW = chart.w - chart.left - chart.right; const plotH = chart.h - chart.top - chart.bottom; %>
+    <% const xFor = (day) => chart.left + ((Number(day) || 0) / pointsProgression.maxDay) * plotW; %>
+    <% const yFor = (value) => chart.top + plotH - ((Number(value) || 0) / pointsProgression.maxPoints) * plotH; %>
+    <div class='trend-chart-wrap'>
+      <svg class='trend-chart' viewBox='0 0 <%= chart.w %> <%= chart.h %>' role='img' aria-label='Points progression by user'>
+        <rect class='trend-plot-bg' x='<%= chart.left %>' y='<%= chart.top %>' width='<%= plotW %>' height='<%= plotH %>' rx='10'></rect>
+        <% pointsProgression.yTicks.forEach(tick => { const y = yFor(tick); %>
+          <line class='trend-grid' x1='<%= chart.left %>' y1='<%= y %>' x2='<%= chart.w - chart.right %>' y2='<%= y %>'></line>
+          <text class='trend-tick trend-y-tick' x='<%= chart.left - 10 %>' y='<%= y + 4 %>'><%= tick %></text>
+        <% }) %>
+        <% pointsProgression.xTicks.forEach(tick => { const x = xFor(tick); %>
+          <line class='trend-grid trend-grid-vertical' x1='<%= x %>' y1='<%= chart.top %>' x2='<%= x %>' y2='<%= chart.top + plotH %>'></line>
+          <text class='trend-tick' x='<%= x %>' y='<%= chart.h - 24 %>'><%= tick %></text>
+        <% }) %>
+        <line class='trend-axis' x1='<%= chart.left %>' y1='<%= chart.top + plotH %>' x2='<%= chart.w - chart.right %>' y2='<%= chart.top + plotH %>'></line>
+        <line class='trend-axis' x1='<%= chart.left %>' y1='<%= chart.top %>' x2='<%= chart.left %>' y2='<%= chart.top + plotH %>'></line>
+        <text class='trend-axis-label' x='<%= chart.left + (plotW / 2) %>' y='<%= chart.h - 6 %>'>Days since tournament start</text>
+        <text class='trend-axis-label trend-y-label' x='16' y='<%= chart.top + (plotH / 2) %>' transform='rotate(-90 16 <%= chart.top + (plotH / 2) %>)'>Points</text>
+        <% pointsProgression.users.forEach(user => { %>
+          <% const polyline = user.points.map(point => `${xFor(point.day).toFixed(1)},${yFor(point.value).toFixed(1)}`).join(' '); %>
+          <polyline class='trend-line' points='<%= polyline %>' style='stroke:<%= user.color %>'></polyline>
+          <% const lastPoint = user.points[user.points.length - 1]; %>
+          <circle class='trend-dot' cx='<%= xFor(lastPoint.day) %>' cy='<%= yFor(lastPoint.value) %>' r='4' style='fill:<%= user.color %>'></circle>
+        <% }) %>
+      </svg>
+    </div>
+    <div class='trend-legend'>
+      <% pointsProgression.users.forEach(user => { %>
+        <span><i style='background:<%= user.color %>'></i><strong><%= user.name %></strong><em><%= user.total %> pts</em></span>
+      <% }) %>
+    </div>
+  <% } else { %>
+    <p class='muted trend-empty'>No finished matches with scored picks yet.</p>
+  <% } %>
+</div>
+</section>
 <section class='card'><h3>Predictions · <%= pool.competition_type === 'world_cup_2026' ? 'World Cup Tournament' : 'Current / Next Matchday' %></h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>
 <div class='invite-row'>
   <input class='invite-link' id='invite-link' readonly value='<%= inviteLink %>' />

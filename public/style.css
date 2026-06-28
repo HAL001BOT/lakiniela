@@ -187,6 +187,28 @@ button:disabled{opacity:.55;cursor:not-allowed}
   background:rgba(255,215,0,.12);
   color:#ffe58a;
 }
+.trend-card{margin-top:18px;padding-top:14px;border-top:1px solid #274080}
+.trend-head{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-bottom:8px}
+.trend-head h3{margin:0;font-size:1rem}
+.trend-head span{color:var(--muted);font-size:.78rem;font-weight:700;text-transform:uppercase}
+.trend-chart-wrap{width:100%;overflow:hidden}
+.trend-chart{display:block;width:100%;height:auto;min-height:210px}
+.trend-plot-bg{fill:#0a1437;stroke:#233d86;stroke-width:1}
+.trend-grid{stroke:#3653a8;stroke-width:1;opacity:.45}
+.trend-grid-vertical{opacity:.25}
+.trend-axis{stroke:#8fb3ff;stroke-width:1.5}
+.trend-line{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))}
+.trend-dot{stroke:#081334;stroke-width:2}
+.trend-tick{fill:var(--muted);font-size:12px;text-anchor:middle}
+.trend-y-tick{text-anchor:end}
+.trend-axis-label{fill:#dfe8ff;font-size:13px;font-weight:700;text-anchor:middle}
+.trend-y-label{text-anchor:middle}
+.trend-legend{display:grid;grid-template-columns:1fr;gap:7px;margin-top:10px}
+.trend-legend span{display:flex;align-items:center;gap:8px;min-width:0;color:#dfe8ff;font-size:.86rem}
+.trend-legend i{display:inline-block;width:12px;height:12px;border-radius:999px;box-shadow:0 0 0 3px rgba(255,255,255,.08)}
+.trend-legend strong{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.trend-legend em{margin-left:auto;color:var(--muted);font-style:normal;white-space:nowrap}
+.trend-empty{margin:8px 0 0}
 .muted{color:var(--muted)}
 .points-good{color:var(--ok)}
 .points-zero{color:var(--muted)}
@@ -257,6 +279,9 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .match-line small{max-width:100%;text-align:left}
   .standings-actions{flex-direction:row;align-items:center}
   .standings-actions .button-link,.standings-actions button{width:auto}
+  .trend-head{align-items:flex-start;flex-direction:column}
+  .trend-chart{min-height:190px}
+  .trend-line{stroke-width:3.5}
 }
 
 @media (max-width:700px){

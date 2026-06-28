@@ -304,6 +304,79 @@ function poolStandings(poolId) {
   `).all(poolId);
 }
 
+const CHART_COLORS = ['#4cc9ff', '#ffe58a', '#2fe2a8', '#ff7aa8', '#b794ff', '#ff9f43', '#7dd3fc', '#f87171'];
+
+function poolPointsProgression(pool, matches) {
+  const members = db.prepare(`
+    SELECT u.id, u.name
+    FROM pool_members pm
+    JOIN users u ON u.id = pm.user_id
+    WHERE pm.pool_id = ?
+    ORDER BY u.name ASC
+  `).all(pool.id);
+
+  if (!members.length || !matches.length) return { hasData: false, users: [], xTicks: [], yTicks: [] };
+
+  const competition = getCompetition(pool.competition_type || 'liga_mx');
+  const matchTimes = matches
+    .map((m) => new Date(m.kickoff_at).getTime())
+    .filter(Number.isFinite);
+  const startMs = competition.startDate
+    ? new Date(competition.startDate).getTime()
+    : Math.min(...matchTimes);
+  if (!Number.isFinite(startMs)) return { hasData: false, users: [], xTicks: [], yTicks: [] };
+
+  const finishedMatchIds = matches
+    .filter((m) => m.status === 'finished')
+    .map((m) => m.id);
+  if (!finishedMatchIds.length) return { hasData: false, users: [], xTicks: [], yTicks: [] };
+
+  const matchDayById = new Map(matches.map((m) => {
+    const kickoffMs = new Date(m.kickoff_at).getTime();
+    const day = Number.isFinite(kickoffMs)
+      ? Math.max(0, Math.floor((kickoffMs - startMs) / (24 * 60 * 60 * 1000)))
+      : 0;
+    return [m.id, day];
+  }));
+
+  const predictionRows = db.prepare(`
+    SELECT user_id, match_id, points
+    FROM predictions
+    WHERE pool_id = ?
+      AND match_id IN (${finishedMatchIds.map(() => '?').join(',')})
+  `).all(pool.id, ...finishedMatchIds);
+
+  const pointsByUserDay = new Map();
+  for (const row of predictionRows) {
+    const day = matchDayById.get(row.match_id);
+    if (!Number.isInteger(day)) continue;
+    const key = `${row.user_id}:${day}`;
+    pointsByUserDay.set(key, (pointsByUserDay.get(key) || 0) + Number(row.points || 0));
+  }
+
+  const days = [...new Set([0, ...finishedMatchIds.map((id) => matchDayById.get(id)).filter(Number.isInteger)])].sort((a, b) => a - b);
+  const users = members.map((member, index) => {
+    let total = 0;
+    const points = days.map((day) => {
+      total += pointsByUserDay.get(`${member.id}:${day}`) || 0;
+      return { day, value: total };
+    });
+    return {
+      ...member,
+      color: CHART_COLORS[index % CHART_COLORS.length],
+      points,
+      total,
+    };
+  });
+
+  const maxDay = Math.max(1, ...days);
+  const maxPoints = Math.max(5, ...users.flatMap((user) => user.points.map((point) => point.value)));
+  const xTicks = [...new Set([0, Math.floor(maxDay / 2), maxDay])].sort((a, b) => a - b);
+  const yTicks = [...new Set([0, Math.ceil(maxPoints / 2), maxPoints])].sort((a, b) => a - b);
+
+  return { hasData: true, users, xTicks, yTicks, maxDay, maxPoints };
+}
+
 function inferJornadaFromAnchor(matches) {
   // Anchor requested by product: current visible matchday is Jornada 9.
   const anchorJornada = 9;
@@ -1114,10 +1187,11 @@ app.get('/pools/:id', auth, (req, res) => {
   const preds = db.prepare('SELECT * FROM predictions WHERE pool_id = ? AND user_id = ?').all(pool.id, req.session.user.id);
   const predByMatch = new Map(preds.map((p) => [p.match_id, p]));
   const standings = poolStandings(pool.id);
+  const pointsProgression = poolPointsProgression(pool, matches);
   const proto = req.get('x-forwarded-proto') || req.protocol;
   const inviteLink = `${proto}://${req.get('host')}/invite/${pool.code}`;
 
-  res.render('pool', { pool, matches: visibleMatches, predByMatch, standings, poolFinished, canViewOthersPicks, nowMs, inviteLink, competitionLogo });
+  res.render('pool', { pool, matches: visibleMatches, predByMatch, standings, pointsProgression, poolFinished, canViewOthersPicks, nowMs, inviteLink, competitionLogo });
 });
 
 app.get('/pools/:id/pronosticos', auth, (req, res) => {
