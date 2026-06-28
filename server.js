@@ -328,6 +328,48 @@ function hasWorldCupPlaceholderTeam(match) {
   return /\b(group|winner|runner-up|2nd place|third place|round of|quarterfinal|semifinal|match)\b/i.test(teamLine);
 }
 
+const WORLD_CUP_ROUNDS = [
+  { key: 'group_stage', label: 'Fase de grupos', size: 72 },
+  { key: 'round_of_32', label: 'Ronda de 32', size: 16 },
+  { key: 'round_of_16', label: 'Octavos de final', size: 8 },
+  { key: 'quarterfinals', label: 'Cuartos de final', size: 4 },
+  { key: 'semifinals', label: 'Semifinales', size: 2 },
+  { key: 'finals', label: 'Finales', size: 2 },
+];
+
+function buildWorldCupRounds(matches) {
+  const ordered = [...(matches || [])].sort((a, b) => {
+    const timeDiff = new Date(a.kickoff_at).getTime() - new Date(b.kickoff_at).getTime();
+    return timeDiff || Number(a.id) - Number(b.id);
+  });
+
+  const rounds = [];
+  let cursor = 0;
+  for (const def of WORLD_CUP_ROUNDS) {
+    const slice = ordered.slice(cursor, cursor + def.size);
+    cursor += def.size;
+    const decidedMatches = slice.filter((m) => !hasWorldCupPlaceholderTeam(m));
+    if (decidedMatches.length) {
+      rounds.push({ ...def, matches: decidedMatches });
+    }
+  }
+  return rounds;
+}
+
+function getActiveWorldCupRound(matches) {
+  const rounds = buildWorldCupRounds(matches);
+  if (!rounds.length) return { matches: [], roundNumber: 0, roundLabel: 'Matches' };
+
+  const now = Date.now();
+  const activeRound = rounds.find((round) => round.matches.some((m) => {
+    const kickoffMs = new Date(m.kickoff_at).getTime();
+    return m.status === 'live' || (Number.isFinite(kickoffMs) && kickoffMs >= now);
+  }));
+
+  const selected = activeRound || rounds[rounds.length - 1];
+  return { matches: selected.matches, roundNumber: selected.matches.length, roundLabel: selected.label };
+}
+
 function deriveLigaMxMatchday(matches) {
   if (!matches.length) return null;
 
@@ -378,8 +420,7 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
   if (!all.length) return { matches: [], roundNumber: competitionType === 'liga_mx' ? 9 : 1, roundLabel: competition.roundLabel };
 
   if (competitionType === 'world_cup_2026') {
-    const decidedMatches = all.filter((m) => !hasWorldCupPlaceholderTeam(m));
-    return { matches: decidedMatches, roundNumber: decidedMatches.length, roundLabel: competition.roundLabel };
+    return getActiveWorldCupRound(all);
   }
 
   const now = Date.now();
@@ -591,6 +632,53 @@ function repairPoolMatches(poolId, competitionType = 'liga_mx') {
   });
 
   tx();
+}
+
+function ensurePoolMatches(pool) {
+  const competitionType = pool.competition_type || 'liga_mx';
+  let matches = getPoolMatches(pool.id);
+
+  if (!matches.length) {
+    // Backfill old pools created before match-locking feature.
+    const snapshotMatches = getUpcomingUniqueScheduledMatches(competitionType).matches;
+    lockPoolMatches(pool.id, snapshotMatches);
+    matches = getPoolMatches(pool.id);
+  }
+
+  if (competitionType === 'world_cup_2026') {
+    // World Cup pools grow as each knockout round is decided. Keep prior picks
+    // and append the active resolved round.
+    const activeRoundMatches = getUpcomingUniqueScheduledMatches(competitionType).matches;
+    lockPoolMatches(pool.id, activeRoundMatches);
+    matches = getPoolMatches(pool.id);
+  }
+
+  const expectedMatches = getCompetition(competitionType).expectedMatches;
+  if (competitionType === 'liga_mx' && matches.length !== expectedMatches) {
+    repairPoolMatches(pool.id, competitionType);
+    matches = getPoolMatches(pool.id);
+  }
+
+  return matches;
+}
+
+function appendActiveWorldCupRoundToPools(poolName = null) {
+  const activeRoundMatches = getUpcomingUniqueScheduledMatches('world_cup_2026').matches;
+  if (!activeRoundMatches.length) return { pools: 0, matchesAdded: 0 };
+
+  const pools = poolName
+    ? db.prepare("SELECT id, name FROM pools WHERE competition_type = 'world_cup_2026' AND lower(name) = lower(?)").all(poolName)
+    : db.prepare("SELECT id, name FROM pools WHERE competition_type = 'world_cup_2026'").all();
+
+  let matchesAdded = 0;
+  for (const pool of pools) {
+    const before = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
+    lockPoolMatches(pool.id, activeRoundMatches);
+    const after = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
+    matchesAdded += Math.max(0, Number(after) - Number(before));
+  }
+
+  return { pools: pools.length, matchesAdded };
 }
 
 function shouldRunFrequentSyncNow() {
@@ -941,19 +1029,7 @@ app.get('/pools/:id', auth, (req, res) => {
   const isMember = db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = ?').get(pool.id, req.session.user.id);
   if (!isMember) return res.status(403).send('Join this pool first.');
 
-  let matches = getPoolMatches(pool.id);
-  if (!matches.length) {
-    // Backfill old pools created before match-locking feature
-    const snapshotMatches = getUpcomingUniqueScheduledMatches(pool.competition_type || 'liga_mx').matches;
-    lockPoolMatches(pool.id, snapshotMatches);
-    matches = getPoolMatches(pool.id);
-  }
-
-  const expectedMatches = getCompetition(pool.competition_type || 'liga_mx').expectedMatches;
-  if ((pool.competition_type || 'liga_mx') === 'liga_mx' && matches.length !== expectedMatches) {
-    repairPoolMatches(pool.id, pool.competition_type || 'liga_mx');
-    matches = getPoolMatches(pool.id);
-  }
+  const matches = ensurePoolMatches(pool);
 
   const nowMs = Date.now();
   const poolFinished = matches.length > 0 && matches.every((m) => m.status === 'finished');
@@ -978,12 +1054,7 @@ app.get('/pools/:id/pronosticos', auth, (req, res) => {
   const viewerMember = db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = ?').get(pool.id, req.session.user.id);
   if (!viewerMember) return res.status(403).send('Join this pool first.');
 
-  let matches = getPoolMatches(pool.id);
-  if (!matches.length) {
-    const snapshotMatches = getUpcomingUniqueScheduledMatches(pool.competition_type || 'liga_mx').matches;
-    lockPoolMatches(pool.id, snapshotMatches);
-    matches = getPoolMatches(pool.id);
-  }
+  const matches = ensurePoolMatches(pool);
 
   const nowMs = Date.now();
   if (!matches.some((match) => matchHasStarted(match, nowMs))) {
@@ -1053,12 +1124,7 @@ app.get('/pools/:id/users/:userId/picks', auth, (req, res) => {
   const targetMember = db.prepare('SELECT u.id, u.name FROM pool_members pm JOIN users u ON u.id = pm.user_id WHERE pm.pool_id = ? AND pm.user_id = ?').get(pool.id, targetUserId);
   if (!targetMember) return res.status(404).send('User is not in this pool.');
 
-  let matches = getPoolMatches(pool.id);
-  if (!matches.length) {
-    const snapshotMatches = getUpcomingUniqueScheduledMatches(pool.competition_type || 'liga_mx').matches;
-    lockPoolMatches(pool.id, snapshotMatches);
-    matches = getPoolMatches(pool.id);
-  }
+  const matches = ensurePoolMatches(pool);
 
   const nowMs = Date.now();
   if (targetUserId !== req.session.user.id && !matches.some((match) => matchHasStarted(match, nowMs))) {
@@ -1136,8 +1202,9 @@ app.post('/admin/sync', async (req, res) => {
   }
   try {
     const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
-    logEvent('admin.sync.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0 }, req, true);
-    return res.json({ ok: true, ligaMx, champions, worldCup });
+    const worldCupPools = appendActiveWorldCupRoundToPools();
+    logEvent('admin.sync.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools }, req, true);
+    return res.json({ ok: true, ligaMx, champions, worldCup, worldCupPools });
   } catch (e) {
     logEvent('admin.sync.failed', { error: e.message }, req, false);
     return res.status(500).json({ ok: false, error: e.message });
@@ -1148,7 +1215,8 @@ cron.schedule('*/5 * * * *', async () => {
   try {
     if (!shouldRunFrequentSyncNow()) return;
     const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
-    logEvent('sync.auto.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0 }, null, true);
+    const worldCupPools = appendActiveWorldCupRoundToPools();
+    logEvent('sync.auto.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools }, null, true);
   } catch (e) {
     logEvent('sync.auto.failed', { error: e.message }, null, false);
   }
@@ -1163,7 +1231,8 @@ cron.schedule('*/15 * * * *', () => {
 (async () => {
   try {
     const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
-    logEvent('sync.startup.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0 }, null, true);
+    const worldCupPools = appendActiveWorldCupRoundToPools();
+    logEvent('sync.startup.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools }, null, true);
   } catch (e) {
     logEvent('sync.startup.failed', { error: e.message }, null, false);
   }
