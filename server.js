@@ -711,6 +711,7 @@ function applyMundial2026PickCorrections() {
     { aliases: ['pablo'], predHome: 1, predAway: 1 },
     { aliases: ['admin'], predHome: 0, predAway: 2 },
     { aliases: ['joaquin', 'joaquín'], predHome: 1, predAway: 2 },
+    { aliases: ['mudo'], predHome: 1, predAway: 2 },
   ];
 
   const missing = [];
