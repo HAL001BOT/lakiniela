@@ -664,21 +664,31 @@ function ensurePoolMatches(pool) {
 
 function appendActiveWorldCupRoundToPools(poolName = null) {
   const activeRoundMatches = getUpcomingUniqueScheduledMatches('world_cup_2026').matches;
-  if (!activeRoundMatches.length) return { pools: 0, matchesAdded: 0 };
+  if (!activeRoundMatches.length) return { pools: 0, matchesAdded: 0, normalizedPools: 0 };
 
   const pools = poolName
-    ? db.prepare("SELECT id, name FROM pools WHERE competition_type = 'world_cup_2026' AND lower(name) = lower(?)").all(poolName)
-    : db.prepare("SELECT id, name FROM pools WHERE competition_type = 'world_cup_2026'").all();
+    ? db.prepare('SELECT id, name, competition_type FROM pools WHERE lower(name) = lower(?)').all(poolName)
+    : db.prepare(`
+      SELECT id, name, competition_type
+      FROM pools
+      WHERE competition_type = 'world_cup_2026'
+         OR lower(name) = 'mundial 2026'
+    `).all();
 
   let matchesAdded = 0;
+  let normalizedPools = 0;
   for (const pool of pools) {
+    if (pool.competition_type !== 'world_cup_2026' && String(pool.name || '').toLowerCase() === 'mundial 2026') {
+      db.prepare("UPDATE pools SET competition_type = 'world_cup_2026' WHERE id = ?").run(pool.id);
+      normalizedPools += 1;
+    }
     const before = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
     lockPoolMatches(pool.id, activeRoundMatches);
     const after = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
     matchesAdded += Math.max(0, Number(after) - Number(before));
   }
 
-  return { pools: pools.length, matchesAdded };
+  return { pools: pools.length, matchesAdded, normalizedPools };
 }
 
 function shouldRunFrequentSyncNow() {
