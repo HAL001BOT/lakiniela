@@ -827,6 +827,51 @@ function applyMundial2026PickCorrections() {
   return { applied, missing };
 }
 
+function removeMundial2026Members() {
+  const pool = db.prepare("SELECT id, name FROM pools WHERE lower(name) = 'mundial 2026' LIMIT 1").get();
+  if (!pool) return { removed: 0, missing: ['pool:mundial 2026'] };
+
+  const targets = [
+    { label: 'marco', aliases: ['marco'] },
+    { label: 'richard hdz', aliases: ['richard hdz', 'richard_hdz', 'richardhdz'] },
+  ];
+
+  const findMember = db.prepare(`
+    SELECT u.id, u.name, u.username, u.email
+    FROM pool_members pm
+    JOIN users u ON u.id = pm.user_id
+    WHERE pm.pool_id = ?
+      AND (
+        lower(u.username) = lower(?)
+        OR lower(u.name) = lower(?)
+        OR lower(substr(u.email, 1, instr(u.email, '@') - 1)) = lower(?)
+      )
+    LIMIT 1
+  `);
+
+  const missing = [];
+  let removed = 0;
+  const tx = db.transaction(() => {
+    for (const target of targets) {
+      const member = target.aliases
+        .map((alias) => findMember.get(pool.id, alias, alias, alias))
+        .find(Boolean);
+
+      if (!member) {
+        missing.push(`user:${target.label}`);
+        continue;
+      }
+
+      db.prepare('DELETE FROM predictions WHERE pool_id = ? AND user_id = ?').run(pool.id, member.id);
+      const info = db.prepare('DELETE FROM pool_members WHERE pool_id = ? AND user_id = ?').run(pool.id, member.id);
+      removed += Number(info.changes || 0);
+    }
+  });
+  tx();
+
+  return { removed, missing };
+}
+
 function shouldRunFrequentSyncNow() {
   const live = db.prepare(`
     SELECT COUNT(*) c
@@ -1076,9 +1121,16 @@ app.post('/admin/users/:id/delete', admin, (req, res) => {
   if (!Number.isInteger(id) || id === req.session.user.id) return res.redirect('/admin/users');
 
   const tx = db.transaction(() => {
+    const ownedPoolIds = db.prepare('SELECT id FROM pools WHERE owner_id = ?').all(id).map((row) => row.id);
+    for (const poolId of ownedPoolIds) {
+      db.prepare('DELETE FROM predictions WHERE pool_id = ?').run(poolId);
+      db.prepare('DELETE FROM pool_matches WHERE pool_id = ?').run(poolId);
+      db.prepare('DELETE FROM pool_members WHERE pool_id = ?').run(poolId);
+      db.prepare('DELETE FROM pools WHERE id = ?').run(poolId);
+    }
+
     db.prepare('DELETE FROM predictions WHERE user_id = ?').run(id);
     db.prepare('DELETE FROM pool_members WHERE user_id = ?').run(id);
-    db.prepare('DELETE FROM pools WHERE owner_id = ?').run(id);
     db.prepare('DELETE FROM users WHERE id = ?').run(id);
   });
   tx();
@@ -1351,8 +1403,9 @@ app.post('/admin/sync', async (req, res) => {
     const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
     const worldCupPools = appendActiveWorldCupRoundToPools();
     const mundialCorrections = applyMundial2026PickCorrections();
-    logEvent('admin.sync.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools, mundialCorrections }, req, true);
-    return res.json({ ok: true, ligaMx, champions, worldCup, worldCupPools, mundialCorrections });
+    const mundialRemovedMembers = removeMundial2026Members();
+    logEvent('admin.sync.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools, mundialCorrections, mundialRemovedMembers }, req, true);
+    return res.json({ ok: true, ligaMx, champions, worldCup, worldCupPools, mundialCorrections, mundialRemovedMembers });
   } catch (e) {
     logEvent('admin.sync.failed', { error: e.message }, req, false);
     return res.status(500).json({ ok: false, error: e.message });
@@ -1365,7 +1418,8 @@ cron.schedule('*/5 * * * *', async () => {
     const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
     const worldCupPools = appendActiveWorldCupRoundToPools();
     const mundialCorrections = applyMundial2026PickCorrections();
-    logEvent('sync.auto.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools, mundialCorrections }, null, true);
+    const mundialRemovedMembers = removeMundial2026Members();
+    logEvent('sync.auto.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools, mundialCorrections, mundialRemovedMembers }, null, true);
   } catch (e) {
     logEvent('sync.auto.failed', { error: e.message }, null, false);
   }
@@ -1382,7 +1436,8 @@ cron.schedule('*/15 * * * *', () => {
     const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
     const worldCupPools = appendActiveWorldCupRoundToPools();
     const mundialCorrections = applyMundial2026PickCorrections();
-    logEvent('sync.startup.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools, mundialCorrections }, null, true);
+    const mundialRemovedMembers = removeMundial2026Members();
+    logEvent('sync.startup.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools, mundialCorrections, mundialRemovedMembers }, null, true);
   } catch (e) {
     logEvent('sync.startup.failed', { error: e.message }, null, false);
   }
