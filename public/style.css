@@ -308,7 +308,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .knockout-stage{width:100%;display:flex;align-items:center;justify-content:center}
 .knockout-circle-large{
   --node:5.4%;
-  --slot:2.1%;
+  --slot:3.4%;
   color:#f4ead6;
   width:min(96vw,96svh,1180px);
   max-width:1180px;
@@ -363,12 +363,11 @@ button:disabled{opacity:.55;cursor:not-allowed}
   width:100%;
   height:100%;
   display:block;
-  background-image:url('/img/world-cup-2026.png');
+  background-image:url('/img/world-cup-trophy-cutout.png');
   background-repeat:no-repeat;
-  background-size:190px auto;
-  background-position:center 2%;
+  background-size:contain;
+  background-position:center;
   filter:drop-shadow(0 16px 16px rgba(0,0,0,.76)) drop-shadow(0 0 24px rgba(241,177,65,.5));
-  clip-path:inset(0 18% 9% 18%);
 }
 .knockout-flag{
   display:grid;
@@ -472,9 +471,8 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .knockout-center img{width:32px;height:32px}
   .knockout-app{padding:12px}
   .knockout-stage{min-height:100svh}
-  .knockout-circle-large{--node:5.4%;--slot:2.1%;width:min(96vw,96svh)}
+  .knockout-circle-large{--node:5.4%;--slot:3.4%;width:min(96vw,96svh)}
   .knockout-center-large{width:96px;height:124px}
-  .knockout-trophy{background-size:156px auto}
   .knockout-flag{font-size:1.95rem}
 }
 
@@ -501,9 +499,8 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .prediction-matrix .user-column a{display:block;max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .knockout-card{padding:10px}
   .knockout-circle{--node:28px;--slot:22px}
-  .knockout-circle-large{--node:5.4%;--slot:2.1%}
+  .knockout-circle-large{--node:5.4%;--slot:3.4%}
   .knockout-center-large{width:78px;height:102px}
-  .knockout-trophy{background-size:128px auto}
   .knockout-flag{font-size:1.55rem}
   .knockout-team em{right:-7px;bottom:-7px;min-width:17px;height:17px;font-size:.62rem}
 }
