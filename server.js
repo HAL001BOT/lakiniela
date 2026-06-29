@@ -449,16 +449,23 @@ function teamInitials(name = '') {
 
 function buildWorldCupKnockoutCircle(matches) {
   const rounds = buildWorldCupRounds(matches).filter((round) => round.key !== 'group_stage');
-  const firstRound = rounds[0];
+  const roundsByKey = new Map(rounds.map((round) => [round.key, round]));
+  const firstRound = roundsByKey.get('round_of_32') || rounds[0];
   if (!firstRound?.matches?.length) return null;
 
-  const size = 520;
+  const size = 760;
   const center = size / 2;
-  const outerRadius = 222;
-  const winnerRadii = [146, 98, 58, 24];
-  const totalOuterSlots = firstRound.matches.length * 2;
+  const outerRadius = 330;
+  const roundSlots = [
+    { key: 'round_of_32', label: 'Ronda de 16', count: 16, radius: 238 },
+    { key: 'round_of_16', label: 'Cuartos', count: 8, radius: 166 },
+    { key: 'quarterfinals', label: 'Semis', count: 4, radius: 104 },
+    { key: 'semifinals', label: 'Final', count: 2, radius: 56 },
+    { key: 'finals', label: 'Campeon', count: 1, radius: 0 },
+  ];
+  const totalOuterSlots = 32;
   const startAngle = -90;
-  const angleStep = 360 / Math.max(1, totalOuterSlots);
+  const angleStep = 360 / totalOuterSlots;
   const toPoint = (angle, radius) => {
     const radians = angle * Math.PI / 180;
     return {
@@ -466,16 +473,23 @@ function buildWorldCupKnockoutCircle(matches) {
       y: Number((center + Math.sin(radians) * radius).toFixed(2)),
     };
   };
+  const slotPoint = (count, index, radius) => {
+    if (count === 1) return { x: center, y: center, angle: -90 };
+    const step = 360 / count;
+    const angle = startAngle + (index * step) + (step / 2);
+    return { ...toPoint(angle, radius), angle };
+  };
 
   const outerTeams = [];
   const connectors = [];
-  firstRound.matches.forEach((match, matchIndex) => {
+  const roundOf32Matches = firstRound.matches.slice(0, 16);
+  for (let matchIndex = 0; matchIndex < 16; matchIndex += 1) {
+    const match = roundOf32Matches[matchIndex] || null;
     const homeAngle = startAngle + (matchIndex * 2 * angleStep);
     const awayAngle = homeAngle + angleStep;
-    const centerAngle = homeAngle + (angleStep / 2);
     const homePoint = toPoint(homeAngle, outerRadius);
     const awayPoint = toPoint(awayAngle, outerRadius);
-    const winnerPoint = toPoint(centerAngle, winnerRadii[0]);
+    const winnerPoint = slotPoint(roundSlots[0].count, matchIndex, roundSlots[0].radius);
     const winnerSide = matchWinner(match);
 
     connectors.push({
@@ -494,47 +508,46 @@ function buildWorldCupKnockoutCircle(matches) {
     });
 
     outerTeams.push({
-      id: `${match.id}-home`,
+      id: `${match?.id || `slot-${matchIndex}`}-home`,
       side: 'home',
-      name: match.home_team,
-      logo: match.home_logo,
-      initials: teamInitials(match.home_team),
-      score: match.home_score,
-      status: match.status,
+      name: match?.home_team || 'TBD',
+      logo: match?.home_logo || '',
+      initials: teamInitials(match?.home_team || 'TBD'),
+      score: match?.home_score ?? null,
+      status: match?.status || 'scheduled',
       winner: winnerSide === 'home',
       eliminated: Boolean(winnerSide && winnerSide !== 'home'),
       x: homePoint.x,
       y: homePoint.y,
     });
     outerTeams.push({
-      id: `${match.id}-away`,
+      id: `${match?.id || `slot-${matchIndex}`}-away`,
       side: 'away',
-      name: match.away_team,
-      logo: match.away_logo,
-      initials: teamInitials(match.away_team),
-      score: match.away_score,
-      status: match.status,
+      name: match?.away_team || 'TBD',
+      logo: match?.away_logo || '',
+      initials: teamInitials(match?.away_team || 'TBD'),
+      score: match?.away_score ?? null,
+      status: match?.status || 'scheduled',
       winner: winnerSide === 'away',
       eliminated: Boolean(winnerSide && winnerSide !== 'away'),
       x: awayPoint.x,
       y: awayPoint.y,
     });
-  });
+  }
 
   const winnerSlots = [];
-  rounds.forEach((round, roundIndex) => {
-    const radius = winnerRadii[Math.min(roundIndex, winnerRadii.length - 1)];
-    const count = Math.max(1, round.matches.length);
-    const slotStep = 360 / count;
-    round.matches.forEach((match, index) => {
-      const angle = startAngle + (index * slotStep) + (slotStep / 2);
-      const point = toPoint(angle, radius);
+  roundSlots.forEach((slotRound, roundIndex) => {
+    const sourceRound = roundsByKey.get(slotRound.key);
+    for (let index = 0; index < slotRound.count; index += 1) {
+      const match = sourceRound?.matches?.[index] || null;
+      const point = slotPoint(slotRound.count, index, slotRound.radius);
       const winnerSide = matchWinner(match);
       const winnerName = winnerSide === 'home' ? match.home_team : winnerSide === 'away' ? match.away_team : '';
       const winnerLogo = winnerSide === 'home' ? match.home_logo : winnerSide === 'away' ? match.away_logo : '';
       winnerSlots.push({
-        id: `${round.key}-${match.id}`,
-        round: round.label,
+        id: `${slotRound.key}-${index}`,
+        layer: roundIndex,
+        round: slotRound.label,
         name: winnerName || 'TBD',
         logo: winnerLogo || '',
         initials: teamInitials(winnerName || 'TBD'),
@@ -542,16 +555,27 @@ function buildWorldCupKnockoutCircle(matches) {
         x: point.x,
         y: point.y,
       });
-    });
+    }
   });
+
+  for (let layerIndex = 0; layerIndex < roundSlots.length - 1; layerIndex += 1) {
+    const current = roundSlots[layerIndex];
+    const next = roundSlots[layerIndex + 1];
+    for (let index = 0; index < current.count; index += 1) {
+      const from = slotPoint(current.count, index, current.radius);
+      const to = slotPoint(next.count, Math.floor(index / 2), next.radius);
+      connectors.push({ x1: from.x, y1: from.y, x2: to.x, y2: to.y, active: false });
+    }
+  }
 
   return {
     size,
-    title: 'Knockout Circle',
-    subtitle: firstRound.label,
+    title: 'World Cup 2026 Knockout Phase',
+    subtitle: 'Circle Draw',
     outerTeams,
     winnerSlots,
     connectors,
+    rings: [outerRadius, ...roundSlots.map((slot) => slot.radius).filter((radius) => radius > 0)],
   };
 }
 
@@ -1435,6 +1459,21 @@ app.get('/pools/:id/pronosticos', auth, (req, res) => {
     rows,
     competitionLogo,
   });
+});
+
+app.get('/pools/:id/knockout', auth, (req, res) => {
+  const pool = db.prepare('SELECT * FROM pools WHERE id = ?').get(req.params.id);
+  if (!pool) return res.status(404).send('Pool not found');
+
+  const isMember = db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = ?').get(pool.id, req.session.user.id);
+  if (!isMember) return res.status(403).send('Join this pool first.');
+  if ((pool.competition_type || 'liga_mx') !== 'world_cup_2026') return res.redirect(`/pools/${pool.id}`);
+
+  const matches = ensurePoolMatches(pool);
+  const knockoutCircle = buildWorldCupKnockoutCircle(matches);
+  if (!knockoutCircle) return res.redirect(`/pools/${pool.id}`);
+
+  res.render('knockout', { pool, knockoutCircle, competitionLogo });
 });
 
 app.get('/pools/:id/users/:userId/picks', auth, (req, res) => {
