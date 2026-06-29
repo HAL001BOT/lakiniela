@@ -1563,7 +1563,7 @@ app.get('/pools/:id/users/:userId/picks', auth, (req, res) => {
       pick: pickByMatch.get(m.id) || null,
     }));
 
-  res.render('pool-user-picks', { pool, targetMember, rows });
+  res.render('pool-user-picks', { pool, targetMember, rows, competitionLogo });
 });
 
 app.post('/pools/:id/predictions/:matchId', auth, (req, res) => {
