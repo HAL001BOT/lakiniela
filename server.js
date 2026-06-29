@@ -355,7 +355,7 @@ function poolPointsProgression(pool, matches) {
   }
 
   const days = [...new Set([0, ...finishedMatchIds.map((id) => matchDayById.get(id)).filter(Number.isInteger)])].sort((a, b) => a - b);
-  const users = members.map((member, index) => {
+  const users = members.map((member) => {
     let total = 0;
     const points = days.map((day) => {
       total += pointsByUserDay.get(`${member.id}:${day}`) || 0;
@@ -363,11 +363,15 @@ function poolPointsProgression(pool, matches) {
     });
     return {
       ...member,
-      color: CHART_COLORS[index % CHART_COLORS.length],
       points,
       total,
     };
-  });
+  })
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name))
+    .map((user, index) => ({
+      ...user,
+      color: CHART_COLORS[index % CHART_COLORS.length],
+    }));
 
   const maxDay = Math.max(1, ...days);
   const maxPoints = Math.max(5, ...users.flatMap((user) => user.points.map((point) => point.value)));
