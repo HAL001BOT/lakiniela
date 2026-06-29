@@ -309,6 +309,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .knockout-circle-large{
   --node:5.4%;
   --slot:3.4%;
+  --winner-slot:5.2%;
   color:#f4ead6;
   width:min(96vw,96svh,1180px);
   max-width:1180px;
@@ -349,7 +350,12 @@ button:disabled{opacity:.55;cursor:not-allowed}
   background:#4f514b;
   box-shadow:none;
 }
-.knockout-circle-large .knockout-slot.is-settled{opacity:1;background:#171817}
+.knockout-circle-large .knockout-slot.is-settled{
+  width:var(--winner-slot);
+  height:var(--winner-slot);
+  opacity:1;
+  background:#171817;
+}
 .knockout-center-large{
   width:118px;
   height:150px;
@@ -379,18 +385,6 @@ button:disabled{opacity:.55;cursor:not-allowed}
   background:#f5f1e8;
   font-size:min(2.35rem,5vw);
   line-height:1;
-}
-.knockout-mark{
-  position:absolute;
-  left:50%;
-  bottom:-7.5%;
-  transform:translateX(-50%);
-  color:#d4d1ca;
-  font-size:1.85rem;
-  line-height:1;
-  font-weight:900;
-  letter-spacing:-.08em;
-  opacity:.85;
 }
 .muted{color:var(--muted)}
 .points-good{color:var(--ok)}
@@ -471,7 +465,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .knockout-center img{width:32px;height:32px}
   .knockout-app{padding:12px}
   .knockout-stage{min-height:100svh}
-  .knockout-circle-large{--node:5.4%;--slot:3.4%;width:min(96vw,96svh)}
+  .knockout-circle-large{--node:5.4%;--slot:3.4%;--winner-slot:5.6%;width:min(96vw,96svh)}
   .knockout-center-large{width:96px;height:124px}
   .knockout-flag{font-size:1.95rem}
 }
@@ -499,7 +493,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .prediction-matrix .user-column a{display:block;max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .knockout-card{padding:10px}
   .knockout-circle{--node:28px;--slot:22px}
-  .knockout-circle-large{--node:5.4%;--slot:3.4%}
+  .knockout-circle-large{--node:5.4%;--slot:3.4%;--winner-slot:5.9%}
   .knockout-center-large{width:78px;height:102px}
   .knockout-flag{font-size:1.55rem}
   .knockout-team em{right:-7px;bottom:-7px;min-width:17px;height:17px;font-size:.62rem}
