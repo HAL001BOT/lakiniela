@@ -70,6 +70,38 @@
 </div>
 </section>
 <section class='card'><h3>Predictions · <%= pool.competition_type === 'world_cup_2026' ? 'World Cup Tournament' : 'Current / Next Matchday' %></h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>
+<% if (knockoutCircle) { %>
+<div class='knockout-card'>
+  <div class='knockout-head'>
+    <h3><%= knockoutCircle.title %></h3>
+    <span><%= knockoutCircle.subtitle %></span>
+  </div>
+  <div class='knockout-circle' style='--knockout-size:<%= knockoutCircle.size %>'>
+    <svg class='knockout-lines' viewBox='0 0 <%= knockoutCircle.size %> <%= knockoutCircle.size %>' aria-hidden='true'>
+      <circle class='knockout-ring' cx='<%= knockoutCircle.size / 2 %>' cy='<%= knockoutCircle.size / 2 %>' r='222'></circle>
+      <circle class='knockout-ring knockout-ring-inner' cx='<%= knockoutCircle.size / 2 %>' cy='<%= knockoutCircle.size / 2 %>' r='146'></circle>
+      <circle class='knockout-ring knockout-ring-inner' cx='<%= knockoutCircle.size / 2 %>' cy='<%= knockoutCircle.size / 2 %>' r='98'></circle>
+      <% knockoutCircle.connectors.forEach(connector => { %>
+        <line class='knockout-connector <%= connector.active ? "is-active" : "" %>' x1='<%= connector.x1 %>' y1='<%= connector.y1 %>' x2='<%= connector.x2 %>' y2='<%= connector.y2 %>'></line>
+      <% }) %>
+    </svg>
+    <div class='knockout-center'>
+      <img src='<%= competitionLogo(pool.competition_type) %>' alt=''/>
+    </div>
+    <% knockoutCircle.outerTeams.forEach(team => { %>
+      <div class='knockout-team <%= team.winner ? "is-winner" : "" %> <%= team.eliminated ? "is-eliminated" : "" %>' style='left:<%= (team.x / knockoutCircle.size) * 100 %>%;top:<%= (team.y / knockoutCircle.size) * 100 %>%' title='<%= team.name %>'>
+        <% if (team.logo) { %><img class='hide-on-error' src='<%= team.logo %>' alt=''/><% } else { %><span><%= team.initials %></span><% } %>
+        <% if (team.status === 'finished' && team.score !== null) { %><em><%= team.score %></em><% } %>
+      </div>
+    <% }) %>
+    <% knockoutCircle.winnerSlots.forEach(slot => { %>
+      <div class='knockout-slot <%= slot.settled ? "is-settled" : "" %>' style='left:<%= (slot.x / knockoutCircle.size) * 100 %>%;top:<%= (slot.y / knockoutCircle.size) * 100 %>%' title='<%= slot.round %>: <%= slot.name %>'>
+        <% if (slot.logo) { %><img class='hide-on-error' src='<%= slot.logo %>' alt=''/><% } else { %><span><%= slot.initials %></span><% } %>
+      </div>
+    <% }) %>
+  </div>
+</div>
+<% } %>
 <div class='invite-row'>
   <input class='invite-link' id='invite-link' readonly value='<%= inviteLink %>' />
   <button type='button' id='copy-invite'>Copy invite</button>
