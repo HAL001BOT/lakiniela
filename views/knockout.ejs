@@ -1,14 +1,9 @@
-<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=770,initial-scale=1'/><title>Knockout · <%= pool.name %></title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260629knockout2'/></head><body class='knockout-page'>
+<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>Knockout · <%= pool.name %></title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260629poster1'/></head><body class='knockout-page'>
 <main class='knockout-app'>
-  <aside class='knockout-sidebar'>
-    <a class='knockout-back' href='/pools/<%= pool.id %>'>← Back to pool</a>
-    <h1>World Cup 2026 Knockout Phase</h1>
-    <p><%= pool.name %></p>
-    <div class='knockout-sidebar-actions'>
-      <a class='knockout-action' href='/pools/<%= pool.id %>'>Pool</a>
-      <a class='knockout-action' href='/pools/<%= pool.id %>/pronosticos'>Pronósticos</a>
-    </div>
-  </aside>
+  <nav class='knockout-nav' aria-label='Knockout navigation'>
+    <a class='knockout-back' href='/pools/<%= pool.id %>'>← Pool</a>
+    <a class='knockout-action' href='/pools/<%= pool.id %>/pronosticos'>Pronósticos</a>
+  </nav>
   <section class='knockout-stage' aria-label='World Cup 2026 knockout bracket'>
     <div class='knockout-circle knockout-circle-large' style='--knockout-size:<%= knockoutCircle.size %>'>
       <svg class='knockout-lines' viewBox='0 0 <%= knockoutCircle.size %> <%= knockoutCircle.size %>' aria-hidden='true'>
@@ -20,11 +15,14 @@
         <% }) %>
       </svg>
       <div class='knockout-center knockout-center-large'>
-        <img src='<%= competitionLogo(pool.competition_type) %>' alt=''/>
+        <span class='knockout-trophy' aria-hidden='true'></span>
       </div>
       <% knockoutCircle.outerTeams.forEach(team => { %>
+        <% if (team.logo) { %>
+          <img class='knockout-crest hide-on-error <%= team.eliminated ? "is-eliminated" : "" %>' src='<%= team.logo %>' alt='' style='left:<%= (team.crestX / knockoutCircle.size) * 100 %>%;top:<%= (team.crestY / knockoutCircle.size) * 100 %>%'>
+        <% } %>
         <div class='knockout-team <%= team.winner ? "is-winner" : "" %> <%= team.eliminated ? "is-eliminated" : "" %>' style='left:<%= (team.x / knockoutCircle.size) * 100 %>%;top:<%= (team.y / knockoutCircle.size) * 100 %>%' title='<%= team.name %>'>
-          <% if (team.logo) { %><img class='hide-on-error' src='<%= team.logo %>' alt=''/><% } else { %><span><%= team.initials %></span><% } %>
+          <% if (team.flag) { %><span class='knockout-flag'><%= team.flag %></span><% } else if (team.logo) { %><img class='hide-on-error' src='<%= team.logo %>' alt=''/><% } else { %><span><%= team.initials %></span><% } %>
           <% if (team.status === 'finished' && team.score !== null) { %><em><%= team.score %></em><% } %>
         </div>
       <% }) %>
@@ -33,6 +31,7 @@
           <% if (slot.logo) { %><img class='hide-on-error' src='<%= slot.logo %>' alt=''/><% } else { %><span><%= slot.initials %></span><% } %>
         </div>
       <% }) %>
+      <div class='knockout-mark' aria-hidden='true'>e9</div>
     </div>
   </section>
 </main>

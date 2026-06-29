@@ -447,20 +447,71 @@ function teamInitials(name = '') {
   return parts.slice(0, 3).map((part) => part[0]).join('').toUpperCase();
 }
 
+const countryFlags = {
+  algeria: '🇩🇿',
+  argentina: '🇦🇷',
+  australia: '🇦🇺',
+  austria: '🇦🇹',
+  belgium: '🇧🇪',
+  bosnia: '🇧🇦',
+  'bosnia and herzegovina': '🇧🇦',
+  brazil: '🇧🇷',
+  canada: '🇨🇦',
+  'cape verde': '🇨🇻',
+  colombia: '🇨🇴',
+  congo: '🇨🇩',
+  'dr congo': '🇨🇩',
+  croatia: '🇭🇷',
+  ecuador: '🇪🇨',
+  egypt: '🇪🇬',
+  england: '🏴',
+  france: '🇫🇷',
+  germany: '🇩🇪',
+  ghana: '🇬🇭',
+  ivory: '🇨🇮',
+  "cote d'ivoire": '🇨🇮',
+  japan: '🇯🇵',
+  mexico: '🇲🇽',
+  morocco: '🇲🇦',
+  netherlands: '🇳🇱',
+  norway: '🇳🇴',
+  paraguay: '🇵🇾',
+  portugal: '🇵🇹',
+  senegal: '🇸🇳',
+  south: '🇿🇦',
+  'south africa': '🇿🇦',
+  spain: '🇪🇸',
+  sweden: '🇸🇪',
+  switzerland: '🇨🇭',
+  usa: '🇺🇸',
+  'united states': '🇺🇸',
+  uruguay: '🇺🇾',
+};
+
+function countryFlag(name = '') {
+  const normalized = String(name || '').toLowerCase().replace(/[^a-z\s']/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  if (countryFlags[normalized]) return countryFlags[normalized];
+  const found = Object.entries(countryFlags)
+    .find(([country]) => normalized.includes(country) || country.includes(normalized));
+  return found ? found[1] : '';
+}
+
 function buildWorldCupKnockoutCircle(matches) {
   const rounds = buildWorldCupRounds(matches).filter((round) => round.key !== 'group_stage');
   const roundsByKey = new Map(rounds.map((round) => [round.key, round]));
   const firstRound = roundsByKey.get('round_of_32') || rounds[0];
   if (!firstRound?.matches?.length) return null;
 
-  const size = 760;
+  const size = 980;
   const center = size / 2;
-  const outerRadius = 330;
+  const outerRadius = 414;
+  const crestRadius = 462;
   const roundSlots = [
-    { key: 'round_of_32', label: 'Ronda de 16', count: 16, radius: 238 },
-    { key: 'round_of_16', label: 'Cuartos', count: 8, radius: 166 },
-    { key: 'quarterfinals', label: 'Semis', count: 4, radius: 104 },
-    { key: 'semifinals', label: 'Final', count: 2, radius: 56 },
+    { key: 'round_of_32', label: 'Ronda de 16', count: 16, radius: 300 },
+    { key: 'round_of_16', label: 'Cuartos', count: 8, radius: 218 },
+    { key: 'quarterfinals', label: 'Semis', count: 4, radius: 142 },
+    { key: 'semifinals', label: 'Final', count: 2, radius: 74 },
     { key: 'finals', label: 'Campeon', count: 1, radius: 0 },
   ];
   const totalOuterSlots = 32;
@@ -489,6 +540,8 @@ function buildWorldCupKnockoutCircle(matches) {
     const awayAngle = homeAngle + angleStep;
     const homePoint = toPoint(homeAngle, outerRadius);
     const awayPoint = toPoint(awayAngle, outerRadius);
+    const homeCrestPoint = toPoint(homeAngle, crestRadius);
+    const awayCrestPoint = toPoint(awayAngle, crestRadius);
     const winnerPoint = slotPoint(roundSlots[0].count, matchIndex, roundSlots[0].radius);
     const winnerSide = matchWinner(match);
 
@@ -512,6 +565,7 @@ function buildWorldCupKnockoutCircle(matches) {
       side: 'home',
       name: match?.home_team || 'TBD',
       logo: match?.home_logo || '',
+      flag: countryFlag(match?.home_team || ''),
       initials: teamInitials(match?.home_team || 'TBD'),
       score: match?.home_score ?? null,
       status: match?.status || 'scheduled',
@@ -519,12 +573,15 @@ function buildWorldCupKnockoutCircle(matches) {
       eliminated: Boolean(winnerSide && winnerSide !== 'home'),
       x: homePoint.x,
       y: homePoint.y,
+      crestX: homeCrestPoint.x,
+      crestY: homeCrestPoint.y,
     });
     outerTeams.push({
       id: `${match?.id || `slot-${matchIndex}`}-away`,
       side: 'away',
       name: match?.away_team || 'TBD',
       logo: match?.away_logo || '',
+      flag: countryFlag(match?.away_team || ''),
       initials: teamInitials(match?.away_team || 'TBD'),
       score: match?.away_score ?? null,
       status: match?.status || 'scheduled',
@@ -532,6 +589,8 @@ function buildWorldCupKnockoutCircle(matches) {
       eliminated: Boolean(winnerSide && winnerSide !== 'away'),
       x: awayPoint.x,
       y: awayPoint.y,
+      crestX: awayCrestPoint.x,
+      crestY: awayCrestPoint.y,
     });
   }
 
