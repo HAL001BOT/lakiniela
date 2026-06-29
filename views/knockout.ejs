@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>Knockout · <%= pool.name %></title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260629poster1'/></head><body class='knockout-page'>
+<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>Knockout · <%= pool.name %></title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260629poster2'/></head><body class='knockout-page'>
 <main class='knockout-app'>
   <nav class='knockout-nav' aria-label='Knockout navigation'>
     <a class='knockout-back' href='/pools/<%= pool.id %>'>← Pool</a>
@@ -18,17 +18,14 @@
         <span class='knockout-trophy' aria-hidden='true'></span>
       </div>
       <% knockoutCircle.outerTeams.forEach(team => { %>
-        <% if (team.logo) { %>
-          <img class='knockout-crest hide-on-error <%= team.eliminated ? "is-eliminated" : "" %>' src='<%= team.logo %>' alt='' style='left:<%= (team.crestX / knockoutCircle.size) * 100 %>%;top:<%= (team.crestY / knockoutCircle.size) * 100 %>%'>
-        <% } %>
         <div class='knockout-team <%= team.winner ? "is-winner" : "" %> <%= team.eliminated ? "is-eliminated" : "" %>' style='left:<%= (team.x / knockoutCircle.size) * 100 %>%;top:<%= (team.y / knockoutCircle.size) * 100 %>%' title='<%= team.name %>'>
-          <% if (team.flag) { %><span class='knockout-flag'><%= team.flag %></span><% } else if (team.logo) { %><img class='hide-on-error' src='<%= team.logo %>' alt=''/><% } else { %><span><%= team.initials %></span><% } %>
+          <% if (team.logo) { %><img class='hide-on-error' src='<%= team.logo %>' alt=''/><% } else if (team.flag) { %><span class='knockout-flag'><%= team.flag %></span><% } else { %><span><%= team.initials %></span><% } %>
           <% if (team.status === 'finished' && team.score !== null) { %><em><%= team.score %></em><% } %>
         </div>
       <% }) %>
       <% knockoutCircle.winnerSlots.forEach(slot => { %>
         <div class='knockout-slot <%= slot.settled ? "is-settled" : "" %>' style='left:<%= (slot.x / knockoutCircle.size) * 100 %>%;top:<%= (slot.y / knockoutCircle.size) * 100 %>%' title='<%= slot.round %>: <%= slot.name %>'>
-          <% if (slot.logo) { %><img class='hide-on-error' src='<%= slot.logo %>' alt=''/><% } else { %><span><%= slot.initials %></span><% } %>
+          <% if (slot.logo) { %><img class='hide-on-error' src='<%= slot.logo %>' alt=''/><% } else if (slot.settled) { %><span><%= slot.initials %></span><% } %>
         </div>
       <% }) %>
       <div class='knockout-mark' aria-hidden='true'>e9</div>

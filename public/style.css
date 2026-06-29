@@ -307,8 +307,8 @@ button:disabled{opacity:.55;cursor:not-allowed}
 }
 .knockout-stage{width:100%;display:flex;align-items:center;justify-content:center}
 .knockout-circle-large{
-  --node:62px;
-  --slot:18px;
+  --node:5.4%;
+  --slot:2.1%;
   color:#f4ead6;
   width:min(96vw,96svh,1180px);
   max-width:1180px;
@@ -335,10 +335,10 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .knockout-circle-large .knockout-slot{
   background:#1b1c1b;
   border:0;
-  box-shadow:0 10px 22px rgba(0,0,0,.36);
+  box-shadow:0 8px 18px rgba(0,0,0,.36);
 }
 .knockout-circle-large .knockout-team img,
-.knockout-circle-large .knockout-slot img{padding:0;background:#171817;object-fit:cover}
+.knockout-circle-large .knockout-slot img{padding:0;background:transparent;object-fit:contain}
 .knockout-circle-large .knockout-team span,
 .knockout-circle-large .knockout-slot span{color:#d6c7a5;font-size:.54rem}
 .knockout-circle-large .knockout-team em{right:-8px;bottom:-4px;background:#f4ead6;color:#111;border:0;box-shadow:0 3px 8px rgba(0,0,0,.36)}
@@ -378,19 +378,9 @@ button:disabled{opacity:.55;cursor:not-allowed}
   border-radius:999px;
   overflow:hidden;
   background:#f5f1e8;
-  font-size:2.35rem;
+  font-size:min(2.35rem,5vw);
   line-height:1;
 }
-.knockout-crest{
-  position:absolute;
-  transform:translate(-50%,-50%);
-  width:62px;
-  height:62px;
-  object-fit:contain;
-  z-index:3;
-  filter:drop-shadow(0 9px 8px rgba(0,0,0,.55));
-}
-.knockout-crest.is-eliminated{opacity:.38;filter:grayscale(1) drop-shadow(0 9px 8px rgba(0,0,0,.55))}
 .knockout-mark{
   position:absolute;
   left:50%;
@@ -482,10 +472,9 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .knockout-center img{width:32px;height:32px}
   .knockout-app{padding:12px}
   .knockout-stage{min-height:100svh}
-  .knockout-circle-large{--node:52px;--slot:16px;width:min(96vw,96svh)}
+  .knockout-circle-large{--node:5.4%;--slot:2.1%;width:min(96vw,96svh)}
   .knockout-center-large{width:96px;height:124px}
   .knockout-trophy{background-size:156px auto}
-  .knockout-crest{width:50px;height:50px}
   .knockout-flag{font-size:1.95rem}
 }
 
@@ -512,10 +501,9 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .prediction-matrix .user-column a{display:block;max-width:112px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .knockout-card{padding:10px}
   .knockout-circle{--node:28px;--slot:22px}
-  .knockout-circle-large{--node:42px;--slot:13px}
+  .knockout-circle-large{--node:5.4%;--slot:2.1%}
   .knockout-center-large{width:78px;height:102px}
   .knockout-trophy{background-size:128px auto}
-  .knockout-crest{width:42px;height:42px}
   .knockout-flag{font-size:1.55rem}
   .knockout-team em{right:-7px;bottom:-7px;min-width:17px;height:17px;font-size:.62rem}
 }

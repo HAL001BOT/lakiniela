@@ -506,7 +506,6 @@ function buildWorldCupKnockoutCircle(matches) {
   const size = 980;
   const center = size / 2;
   const outerRadius = 414;
-  const crestRadius = 462;
   const roundSlots = [
     { key: 'round_of_32', label: 'Ronda de 16', count: 16, radius: 300 },
     { key: 'round_of_16', label: 'Cuartos', count: 8, radius: 218 },
@@ -540,8 +539,6 @@ function buildWorldCupKnockoutCircle(matches) {
     const awayAngle = homeAngle + angleStep;
     const homePoint = toPoint(homeAngle, outerRadius);
     const awayPoint = toPoint(awayAngle, outerRadius);
-    const homeCrestPoint = toPoint(homeAngle, crestRadius);
-    const awayCrestPoint = toPoint(awayAngle, crestRadius);
     const winnerPoint = slotPoint(roundSlots[0].count, matchIndex, roundSlots[0].radius);
     const winnerSide = matchWinner(match);
 
@@ -573,8 +570,6 @@ function buildWorldCupKnockoutCircle(matches) {
       eliminated: Boolean(winnerSide && winnerSide !== 'home'),
       x: homePoint.x,
       y: homePoint.y,
-      crestX: homeCrestPoint.x,
-      crestY: homeCrestPoint.y,
     });
     outerTeams.push({
       id: `${match?.id || `slot-${matchIndex}`}-away`,
@@ -589,8 +584,6 @@ function buildWorldCupKnockoutCircle(matches) {
       eliminated: Boolean(winnerSide && winnerSide !== 'away'),
       x: awayPoint.x,
       y: awayPoint.y,
-      crestX: awayCrestPoint.x,
-      crestY: awayCrestPoint.y,
     });
   }
 
