@@ -1096,7 +1096,7 @@ function shouldRunFrequentSyncNow() {
   `).all();
 
   const now = Date.now();
-  const gameWindowMs = 2.5 * 60 * 60 * 1000; // keep syncing for ~150 min after kickoff
+  const gameWindowMs = 2.5 * 60 * 60 * 1000; // only poll during the expected live match window
 
   return upcoming.some((m) => {
     const kickoff = new Date(m.kickoff_at).getTime();
@@ -1633,7 +1633,7 @@ app.post('/admin/sync', async (req, res) => {
   }
 });
 
-cron.schedule('*/5 * * * *', async () => {
+cron.schedule('* * * * *', async () => {
   try {
     if (!shouldRunFrequentSyncNow()) return;
     const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
