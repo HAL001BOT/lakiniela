@@ -11,7 +11,7 @@ Modern soccer pool app (web MVP).
   - **3 points** = correct match result (win/draw/loss)
   - **5 points** = exact score
 - Pool standings dashboard
-- Automatic fixture/results import + scoring sync every 20 minutes (ESPN public feed)
+- Automatic fixture/results import + scoring sync every 5 minutes during each match's live window (ESPN public feed)
 
 ## Run
 ```bash

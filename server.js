@@ -1096,12 +1096,11 @@ function shouldRunFrequentSyncNow() {
   `).all();
 
   const now = Date.now();
-  const preWindowMs = 15 * 60 * 1000;   // start syncing 15 min before kickoff
   const gameWindowMs = 2.5 * 60 * 60 * 1000; // keep syncing for ~150 min after kickoff
 
   return upcoming.some((m) => {
     const kickoff = new Date(m.kickoff_at).getTime();
-    return Number.isFinite(kickoff) && now >= (kickoff - preWindowMs) && now <= (kickoff + gameWindowMs);
+    return Number.isFinite(kickoff) && now >= kickoff && now <= (kickoff + gameWindowMs);
   });
 }
 
