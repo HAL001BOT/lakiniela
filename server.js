@@ -501,11 +501,99 @@ function countryFlag(name = '') {
   return found ? found[1] : '';
 }
 
+const WORLD_CUP_ROUND_OF_32_VISUAL_ORDER = [
+  ['Paraguay', 'Germany'],
+  ['Brazil', 'Japan'],
+  ['Ivory Coast', 'Norway'],
+  ['Mexico', 'Ecuador'],
+  ['England', 'Congo DR'],
+  ['Argentina', 'Cape Verde'],
+  ['Australia', 'Egypt'],
+  ['Switzerland', 'Algeria'],
+  ['Colombia', 'Ghana'],
+  ['Senegal', 'Belgium'],
+  ['Bosnia-Herzegovina', 'United States'],
+  ['Austria', 'Spain'],
+  ['Croatia', 'Portugal'],
+  ['Morocco', 'Netherlands'],
+  ['Canada', 'South Africa'],
+  ['Sweden', 'France'],
+];
+
+const WORLD_CUP_TEAM_ALIASES = {
+  'bosnia and herzegovina': 'bosnia herzegovina',
+  'bosnia herzegovina': 'bosnia herzegovina',
+  'congo dr': 'dr congo',
+  'cote d ivoire': 'ivory coast',
+  'cote divoire': 'ivory coast',
+  'dr congo': 'dr congo',
+  'turkiye': 'turkey',
+  'turkey': 'turkey',
+  'united states': 'usa',
+  'united states of america': 'usa',
+  usa: 'usa',
+};
+
+function worldCupTeamKey(name = '') {
+  const normalized = normalizeTeamName(name);
+  return WORLD_CUP_TEAM_ALIASES[normalized] || normalized;
+}
+
+function matchSideForTeam(match, teamName) {
+  if (!match) return null;
+  const key = worldCupTeamKey(teamName);
+  if (worldCupTeamKey(match.home_team) === key) return 'home';
+  if (worldCupTeamKey(match.away_team) === key) return 'away';
+  return null;
+}
+
+function teamFromMatchSlot(match, teamName, point, winnerSide) {
+  const side = matchSideForTeam(match, teamName);
+  const actualName = side === 'home' ? match.home_team : side === 'away' ? match.away_team : teamName;
+  return {
+    id: `${match?.id || `slot-${worldCupTeamKey(teamName)}`}-${side || worldCupTeamKey(teamName)}`,
+    side: side || worldCupTeamKey(teamName),
+    name: actualName || 'TBD',
+    logo: side === 'home' ? match.home_logo : side === 'away' ? match.away_logo : '',
+    flag: countryFlag(actualName || teamName),
+    initials: teamInitials(actualName || teamName || 'TBD'),
+    score: side === 'home' ? match.home_score : side === 'away' ? match.away_score : null,
+    status: match?.status || 'scheduled',
+    winner: Boolean(side && winnerSide === side),
+    eliminated: Boolean(side && winnerSide && winnerSide !== side),
+    x: point.x,
+    y: point.y,
+  };
+}
+
+function findWorldCupMatchByTeams(matches, teamA, teamB) {
+  const keyA = worldCupTeamKey(teamA);
+  const keyB = worldCupTeamKey(teamB);
+  return matches.find((match) => {
+    const home = worldCupTeamKey(match.home_team);
+    const away = worldCupTeamKey(match.away_team);
+    return (home === keyA && away === keyB) || (home === keyB && away === keyA);
+  }) || null;
+}
+
+function orderedWorldCupRoundOf32Matches(matches) {
+  const available = [...(matches || [])]
+    .filter((match) => !hasWorldCupPlaceholderTeam(match))
+    .sort((a, b) => {
+      const timeDiff = new Date(a.kickoff_at).getTime() - new Date(b.kickoff_at).getTime();
+      return timeDiff || Number(a.id) - Number(b.id);
+    });
+
+  return WORLD_CUP_ROUND_OF_32_VISUAL_ORDER.map(([teamA, teamB]) => findWorldCupMatchByTeams(available, teamA, teamB));
+}
+
 function buildWorldCupKnockoutCircle(matches) {
   const rounds = buildWorldCupRounds(matches).filter((round) => round.key !== 'group_stage');
   const roundsByKey = new Map(rounds.map((round) => [round.key, round]));
   const firstRound = roundsByKey.get('round_of_32') || rounds[0];
-  if (!firstRound?.matches?.length) return null;
+  const visualRoundOf32Matches = orderedWorldCupRoundOf32Matches(matches);
+  const hasVisualRound = visualRoundOf32Matches.some(Boolean);
+  if (!hasVisualRound && !firstRound?.matches?.length) return null;
 
   const size = 980;
   const center = size / 2;
@@ -518,8 +606,8 @@ function buildWorldCupKnockoutCircle(matches) {
     { key: 'finals', label: 'Campeon', count: 1, radius: 0 },
   ];
   const totalOuterSlots = 32;
-  const startAngle = -90;
   const angleStep = 360 / totalOuterSlots;
+  const startAngle = -90 - angleStep;
   const toPoint = (angle, radius) => {
     const radians = angle * Math.PI / 180;
     return {
@@ -536,66 +624,49 @@ function buildWorldCupKnockoutCircle(matches) {
 
   const outerTeams = [];
   const connectors = [];
-  const roundOf32Matches = firstRound.matches.slice(0, 16);
+  const roundOf32Matches = hasVisualRound
+    ? visualRoundOf32Matches
+    : firstRound.matches.slice(0, 16);
   for (let matchIndex = 0; matchIndex < 16; matchIndex += 1) {
     const match = roundOf32Matches[matchIndex] || null;
+    const visualFixture = WORLD_CUP_ROUND_OF_32_VISUAL_ORDER[matchIndex] || [];
+    const homeTeam = visualFixture[0] || match?.home_team || 'TBD';
+    const awayTeam = visualFixture[1] || match?.away_team || 'TBD';
     const homeAngle = startAngle + (matchIndex * 2 * angleStep);
     const awayAngle = homeAngle + angleStep;
     const homePoint = toPoint(homeAngle, outerRadius);
     const awayPoint = toPoint(awayAngle, outerRadius);
     const winnerPoint = slotPoint(roundSlots[0].count, matchIndex, roundSlots[0].radius);
     const winnerSide = matchWinner(match);
+    const homeVisualSide = matchSideForTeam(match, homeTeam);
+    const awayVisualSide = matchSideForTeam(match, awayTeam);
 
     connectors.push({
       x1: homePoint.x,
       y1: homePoint.y,
       x2: winnerPoint.x,
       y2: winnerPoint.y,
-      active: winnerSide === 'home',
+      active: Boolean(homeVisualSide && winnerSide === homeVisualSide),
     });
     connectors.push({
       x1: awayPoint.x,
       y1: awayPoint.y,
       x2: winnerPoint.x,
       y2: winnerPoint.y,
-      active: winnerSide === 'away',
+      active: Boolean(awayVisualSide && winnerSide === awayVisualSide),
     });
 
-    outerTeams.push({
-      id: `${match?.id || `slot-${matchIndex}`}-home`,
-      side: 'home',
-      name: match?.home_team || 'TBD',
-      logo: match?.home_logo || '',
-      flag: countryFlag(match?.home_team || ''),
-      initials: teamInitials(match?.home_team || 'TBD'),
-      score: match?.home_score ?? null,
-      status: match?.status || 'scheduled',
-      winner: winnerSide === 'home',
-      eliminated: Boolean(winnerSide && winnerSide !== 'home'),
-      x: homePoint.x,
-      y: homePoint.y,
-    });
-    outerTeams.push({
-      id: `${match?.id || `slot-${matchIndex}`}-away`,
-      side: 'away',
-      name: match?.away_team || 'TBD',
-      logo: match?.away_logo || '',
-      flag: countryFlag(match?.away_team || ''),
-      initials: teamInitials(match?.away_team || 'TBD'),
-      score: match?.away_score ?? null,
-      status: match?.status || 'scheduled',
-      winner: winnerSide === 'away',
-      eliminated: Boolean(winnerSide && winnerSide !== 'away'),
-      x: awayPoint.x,
-      y: awayPoint.y,
-    });
+    outerTeams.push(teamFromMatchSlot(match, homeTeam, homePoint, winnerSide));
+    outerTeams.push(teamFromMatchSlot(match, awayTeam, awayPoint, winnerSide));
   }
 
   const winnerSlots = [];
   roundSlots.forEach((slotRound, roundIndex) => {
-    const sourceRound = roundsByKey.get(slotRound.key);
+    const sourceMatches = slotRound.key === 'round_of_32'
+      ? roundOf32Matches
+      : (roundsByKey.get(slotRound.key)?.matches || []);
     for (let index = 0; index < slotRound.count; index += 1) {
-      const match = sourceRound?.matches?.[index] || null;
+      const match = sourceMatches[index] || null;
       const point = slotPoint(slotRound.count, index, slotRound.radius);
       const winnerSide = matchWinner(match);
       const winnerName = winnerSide === 'home' ? match.home_team : winnerSide === 'away' ? match.away_team : '';
