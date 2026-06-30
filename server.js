@@ -435,6 +435,7 @@ function buildWorldCupRounds(matches) {
 
 function matchWinner(match) {
   if (!match || match.status !== 'finished') return null;
+  if (match.winner_side === 'home' || match.winner_side === 'away') return match.winner_side;
   const homeScore = Number(match.home_score);
   const awayScore = Number(match.away_score);
   if (!Number.isFinite(homeScore) || !Number.isFinite(awayScore) || homeScore === awayScore) return null;
@@ -1680,9 +1681,28 @@ app.post('/admin/matches/:id/final', (req, res) => {
   if (!Number.isInteger(home) || !Number.isInteger(away) || home < 0 || away < 0) {
     return res.status(400).json({ ok: false, error: 'Invalid score.' });
   }
-  db.prepare("UPDATE matches SET home_score = ?, away_score = ?, status = 'finished' WHERE id = ?").run(home, away, req.params.id);
+  const homePenalty = req.body.home_penalty_score === undefined || req.body.home_penalty_score === ''
+    ? null
+    : Number(req.body.home_penalty_score);
+  const awayPenalty = req.body.away_penalty_score === undefined || req.body.away_penalty_score === ''
+    ? null
+    : Number(req.body.away_penalty_score);
+  if (
+    (homePenalty !== null && (!Number.isInteger(homePenalty) || homePenalty < 0))
+    || (awayPenalty !== null && (!Number.isInteger(awayPenalty) || awayPenalty < 0))
+  ) {
+    return res.status(400).json({ ok: false, error: 'Invalid penalty score.' });
+  }
+
+  const requestedWinner = req.body.winner_side === 'home' || req.body.winner_side === 'away' ? req.body.winner_side : null;
+  const winnerSide = home > away ? 'home' : away > home ? 'away' : requestedWinner;
+  db.prepare(`
+    UPDATE matches
+    SET home_score = ?, away_score = ?, home_penalty_score = ?, away_penalty_score = ?, winner_side = ?, status = 'finished'
+    WHERE id = ?
+  `).run(home, away, homePenalty, awayPenalty, winnerSide, req.params.id);
   recalcPointsForMatch(Number(req.params.id));
-  logEvent('admin.final_score.ok', { matchId: Number(req.params.id), home, away }, req, true);
+  logEvent('admin.final_score.ok', { matchId: Number(req.params.id), home, away, homePenalty, awayPenalty, winnerSide }, req, true);
   res.json({ ok: true });
 });
 

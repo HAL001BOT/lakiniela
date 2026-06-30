@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS matches (
   kickoff_at TEXT NOT NULL,
   home_score INTEGER,
   away_score INTEGER,
+  home_penalty_score INTEGER,
+  away_penalty_score INTEGER,
+  winner_side TEXT,
   status TEXT DEFAULT 'scheduled'
 );
 
@@ -112,6 +115,9 @@ CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_a
 
 try { db.exec('ALTER TABLE matches ADD COLUMN home_logo TEXT'); } catch {}
 try { db.exec('ALTER TABLE matches ADD COLUMN away_logo TEXT'); } catch {}
+try { db.exec('ALTER TABLE matches ADD COLUMN home_penalty_score INTEGER'); } catch {}
+try { db.exec('ALTER TABLE matches ADD COLUMN away_penalty_score INTEGER'); } catch {}
+try { db.exec('ALTER TABLE matches ADD COLUMN winner_side TEXT'); } catch {}
 try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_external_id ON matches(external_id) WHERE external_id IS NOT NULL'); } catch {}
 
 const duplicateExternalMatches = db.prepare(`
@@ -171,6 +177,28 @@ try { db.exec(`
   ON matches(league, home_team, away_team, kickoff_at)
   WHERE league = 'Liga MX'
 `); } catch {}
+
+const stalePreviewMatches = db.prepare(`
+  SELECT m.id
+  FROM matches m
+  LEFT JOIN predictions p ON p.match_id = m.id
+  WHERE m.external_id LIKE 'preview-r32-%'
+  GROUP BY m.id
+  HAVING COUNT(p.id) = 0
+`).all();
+
+if (stalePreviewMatches.length) {
+  const removePreviewMatches = db.transaction((rows) => {
+    const deletePoolMatch = db.prepare('DELETE FROM pool_matches WHERE match_id = ?');
+    const deleteMatch = db.prepare('DELETE FROM matches WHERE id = ?');
+    for (const row of rows) {
+      deletePoolMatch.run(row.id);
+      deleteMatch.run(row.id);
+    }
+  });
+  removePreviewMatches(stalePreviewMatches);
+}
+
 try { db.exec('ALTER TABLE users ADD COLUMN username TEXT'); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch {}
 try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)'); } catch {}

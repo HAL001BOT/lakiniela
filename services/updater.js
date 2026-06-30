@@ -59,7 +59,7 @@ function upsertMatch(match) {
     db.prepare(`
       UPDATE matches
       SET league = ?, season = ?, matchday = ?, home_team = ?, away_team = ?, home_logo = ?, away_logo = ?, kickoff_at = ?,
-          home_score = ?, away_score = ?, status = ?
+          home_score = ?, away_score = ?, home_penalty_score = ?, away_penalty_score = ?, winner_side = ?, status = ?
       WHERE id = ?
     `).run(
       match.league,
@@ -72,6 +72,9 @@ function upsertMatch(match) {
       match.kickoffAt,
       match.homeScore,
       match.awayScore,
+      match.homePenaltyScore,
+      match.awayPenaltyScore,
+      match.winnerSide,
       match.status,
       existing.id
     );
@@ -81,8 +84,11 @@ function upsertMatch(match) {
   }
 
   const info = db.prepare(`
-    INSERT INTO matches (external_id, league, season, matchday, home_team, away_team, home_logo, away_logo, kickoff_at, home_score, away_score, status)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO matches (
+      external_id, league, season, matchday, home_team, away_team, home_logo, away_logo, kickoff_at,
+      home_score, away_score, home_penalty_score, away_penalty_score, winner_side, status
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     match.externalId,
     match.league,
@@ -95,6 +101,9 @@ function upsertMatch(match) {
     match.kickoffAt,
     match.homeScore,
     match.awayScore,
+    match.homePenaltyScore,
+    match.awayPenaltyScore,
+    match.winnerSide,
     match.status
   );
 
@@ -123,6 +132,13 @@ async function fetchEspnCompetitionRange(config, dates) {
     const parsedAway = Number.isFinite(Number(away?.score)) ? Number(away.score) : null;
     const homeScore = (status === 'finished' || status === 'live') ? parsedHome : null;
     const awayScore = (status === 'finished' || status === 'live') ? parsedAway : null;
+    const parsedHomePenalty = Number.isFinite(Number(home?.shootoutScore)) ? Number(home.shootoutScore) : null;
+    const parsedAwayPenalty = Number.isFinite(Number(away?.shootoutScore)) ? Number(away.shootoutScore) : null;
+    const homePenaltyScore = status === 'finished' ? parsedHomePenalty : null;
+    const awayPenaltyScore = status === 'finished' ? parsedAwayPenalty : null;
+    const winnerSide = status === 'finished'
+      ? (home?.winner ? 'home' : away?.winner ? 'away' : null)
+      : null;
 
     const externalId = config.key === 'liga_mx' ? `espn:${ev.id}` : `espn:${config.key}:${ev.id}`;
 
@@ -138,6 +154,9 @@ async function fetchEspnCompetitionRange(config, dates) {
       kickoffAt: ev.date,
       homeScore,
       awayScore,
+      homePenaltyScore,
+      awayPenaltyScore,
+      winnerSide,
       status,
     };
   });

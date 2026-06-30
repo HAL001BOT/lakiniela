@@ -62,6 +62,9 @@
                       </div>
                       <% if ((match.status === 'finished' || match.status === 'live') && match.home_score !== null && match.away_score !== null) { %>
                         <strong class='matrix-result'><%= match.home_score %> - <%= match.away_score %></strong>
+                        <% if (match.status === 'finished' && match.home_penalty_score !== null && match.away_penalty_score !== null) { %>
+                          <small class='matrix-live'>PENS <%= match.home_penalty_score %> - <%= match.away_penalty_score %></small>
+                        <% } %>
                         <% if (match.status === 'live') { %><small class='matrix-live'>EN VIVO</small><% } %>
                       <% } else { %>
                         <strong class='matrix-result matrix-result-pending'>—</strong>

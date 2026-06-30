@@ -87,6 +87,9 @@
       <span class='score-line'>
         <% if (m.status==='finished') { %><span class='final-score-label'>Final score</span><% } %>
         <strong><%= m.home_score %>-<%= m.away_score %></strong>
+        <% if (m.status==='finished' && m.home_penalty_score !== null && m.away_penalty_score !== null) { %>
+          <span class='final-score-label'>Pens <%= m.home_penalty_score %>-<%= m.away_penalty_score %></span>
+        <% } %>
         <% if (m.status==='live') { %><span class='live-dot' title='Live now'></span><% } %>
       </span>
     </div>
