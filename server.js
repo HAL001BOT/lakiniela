@@ -306,7 +306,7 @@ function poolStandings(poolId) {
 
 const CHART_COLORS = ['#4cc9ff', '#ffe58a', '#2fe2a8', '#ff7aa8', '#b794ff', '#ff9f43', '#7dd3fc', '#f87171'];
 
-function poolPointsProgression(pool, matches) {
+function poolPointsProgression(pool, matches, options = {}) {
   const members = db.prepare(`
     SELECT u.id, u.name
     FROM pool_members pm
@@ -321,9 +321,12 @@ function poolPointsProgression(pool, matches) {
   const matchTimes = matches
     .map((m) => new Date(m.kickoff_at).getTime())
     .filter(Number.isFinite);
-  const startMs = competition.startDate
+  const firstMatchMs = Math.min(...matchTimes);
+  const startMs = options.startAtFirstMatch
+    ? firstMatchMs
+    : competition.startDate
     ? new Date(competition.startDate).getTime()
-    : Math.min(...matchTimes);
+    : firstMatchMs;
   if (!Number.isFinite(startMs)) return { hasData: false, users: [], xTicks: [], yTicks: [] };
 
   const finishedMatchIds = matches
@@ -379,6 +382,11 @@ function poolPointsProgression(pool, matches) {
   const yTicks = [...new Set([0, Math.ceil(maxPoints / 2), maxPoints])].sort((a, b) => a - b);
 
   return { hasData: true, users, xTicks, yTicks, maxDay, maxPoints };
+}
+
+function worldCupRoundMatches(matches, roundKey) {
+  const round = buildWorldCupRounds(matches).find((candidate) => candidate.key === roundKey);
+  return round ? round.matches : [];
 }
 
 function inferJornadaFromAnchor(matches) {
@@ -1517,11 +1525,17 @@ app.get('/pools/:id', auth, (req, res) => {
   const predByMatch = new Map(preds.map((p) => [p.match_id, p]));
   const standings = poolStandings(pool.id);
   const pointsProgression = poolPointsProgression(pool, matches);
+  const roundOf32Matches = pool.competition_type === 'world_cup_2026'
+    ? worldCupRoundMatches(matches, 'round_of_32')
+    : [];
+  const roundOf32PointsProgression = roundOf32Matches.length
+    ? poolPointsProgression(pool, roundOf32Matches, { startAtFirstMatch: true })
+    : null;
   const knockoutCircle = buildWorldCupKnockoutCircle(matches);
   const proto = req.get('x-forwarded-proto') || req.protocol;
   const inviteLink = `${proto}://${req.get('host')}/invite/${pool.code}`;
 
-  res.render('pool', { pool, matches: visibleMatches, predByMatch, standings, pointsProgression, knockoutCircle, poolFinished, canViewOthersPicks, nowMs, inviteLink, competitionLogo });
+  res.render('pool', { pool, matches: visibleMatches, predByMatch, standings, pointsProgression, roundOf32PointsProgression, knockoutCircle, poolFinished, canViewOthersPicks, nowMs, inviteLink, competitionLogo });
 });
 
 app.get('/pools/:id/pronosticos', auth, (req, res) => {
