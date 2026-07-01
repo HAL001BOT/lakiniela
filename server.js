@@ -1054,23 +1054,35 @@ function applyMundial2026PickCorrections() {
   const pool = db.prepare("SELECT id, name FROM pools WHERE lower(name) = 'mundial 2026' LIMIT 1").get();
   if (!pool) return { applied: 0, missing: ['pool:mundial 2026'] };
 
-  const match = db.prepare(`
+  const findMatch = db.prepare(`
     SELECT m.*
     FROM pool_matches pm
     JOIN matches m ON m.id = pm.match_id
     WHERE pm.pool_id = ?
-      AND lower(m.home_team) = 'south africa'
-      AND lower(m.away_team) = 'canada'
+      AND lower(m.home_team) = lower(?)
+      AND lower(m.away_team) = lower(?)
     ORDER BY datetime(m.kickoff_at) DESC
     LIMIT 1
-  `).get(pool.id);
-  if (!match) return { applied: 0, missing: ['match:South Africa vs Canada'] };
+  `);
 
-  const corrections = [
-    { aliases: ['pablo'], predHome: 1, predAway: 1 },
-    { aliases: ['admin'], predHome: 0, predAway: 2 },
-    { aliases: ['joaquin', 'joaquín'], predHome: 1, predAway: 2 },
-    { aliases: ['mudo'], predHome: 1, predAway: 2 },
+  const matchCorrections = [
+    {
+      homeTeam: 'South Africa',
+      awayTeam: 'Canada',
+      picks: [
+        { aliases: ['pablo'], predHome: 1, predAway: 1 },
+        { aliases: ['admin'], predHome: 0, predAway: 2 },
+        { aliases: ['joaquin', 'joaquín'], predHome: 1, predAway: 2 },
+        { aliases: ['mudo'], predHome: 1, predAway: 2 },
+      ],
+    },
+    {
+      homeTeam: 'England',
+      awayTeam: 'Congo DR',
+      picks: [
+        { aliases: ['metaai', 'metaAI', 'meta ai'], predHome: 4, predAway: 0 },
+      ],
+    },
   ];
 
   const missing = [];
@@ -1095,21 +1107,32 @@ function applyMundial2026PickCorrections() {
     DO UPDATE SET pred_home = excluded.pred_home, pred_away = excluded.pred_away, updated_at = CURRENT_TIMESTAMP
   `);
 
-  for (const correction of corrections) {
-    const member = correction.aliases
-      .map((alias) => findMember.get(pool.id, alias, alias, alias))
-      .find(Boolean);
-
-    if (!member) {
-      missing.push(`user:${correction.aliases[0]}`);
+  const recalcMatchIds = new Set();
+  for (const matchCorrection of matchCorrections) {
+    const match = findMatch.get(pool.id, matchCorrection.homeTeam, matchCorrection.awayTeam);
+    if (!match) {
+      missing.push(`match:${matchCorrection.homeTeam} vs ${matchCorrection.awayTeam}`);
       continue;
     }
 
-    upsert.run(pool.id, member.id, match.id, correction.predHome, correction.predAway);
-    applied += 1;
+    for (const correction of matchCorrection.picks) {
+      const member = correction.aliases
+        .map((alias) => findMember.get(pool.id, alias, alias, alias))
+        .find(Boolean);
+
+      if (!member) {
+        missing.push(`user:${correction.aliases[0]}`);
+        continue;
+      }
+
+      upsert.run(pool.id, member.id, match.id, correction.predHome, correction.predAway);
+      applied += 1;
+    }
+
+    if (match.status === 'finished') recalcMatchIds.add(match.id);
   }
 
-  if (match.status === 'finished') recalcPointsForMatch(match.id);
+  for (const matchId of recalcMatchIds) recalcPointsForMatch(matchId);
   return { applied, missing };
 }
 
