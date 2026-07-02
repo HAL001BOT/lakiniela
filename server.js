@@ -556,6 +556,17 @@ function matchSideForTeam(match, teamName) {
   return null;
 }
 
+function matchHasTeam(match, teamName) {
+  return Boolean(matchSideForTeam(match, teamName));
+}
+
+function matchWinnerName(match) {
+  const winnerSide = matchWinner(match);
+  if (winnerSide === 'home') return match.home_team;
+  if (winnerSide === 'away') return match.away_team;
+  return '';
+}
+
 function teamFromMatchSlot(match, teamName, point, winnerSide) {
   const side = matchSideForTeam(match, teamName);
   const actualName = side === 'home' ? match.home_team : side === 'away' ? match.away_team : teamName;
@@ -650,20 +661,22 @@ function buildWorldCupKnockoutCircle(matches) {
     const homeVisualSide = matchSideForTeam(match, homeTeam);
     const awayVisualSide = matchSideForTeam(match, awayTeam);
 
-    connectors.push({
-      x1: homePoint.x,
-      y1: homePoint.y,
-      x2: winnerPoint.x,
-      y2: winnerPoint.y,
-      active: Boolean(homeVisualSide && winnerSide === homeVisualSide),
-    });
-    connectors.push({
-      x1: awayPoint.x,
-      y1: awayPoint.y,
-      x2: winnerPoint.x,
-      y2: winnerPoint.y,
-      active: Boolean(awayVisualSide && winnerSide === awayVisualSide),
-    });
+    if (match) {
+      connectors.push({
+        x1: homePoint.x,
+        y1: homePoint.y,
+        x2: winnerPoint.x,
+        y2: winnerPoint.y,
+        active: Boolean(homeVisualSide && winnerSide === homeVisualSide),
+      });
+      connectors.push({
+        x1: awayPoint.x,
+        y1: awayPoint.y,
+        x2: winnerPoint.x,
+        y2: winnerPoint.y,
+        active: Boolean(awayVisualSide && winnerSide === awayVisualSide),
+      });
+    }
 
     outerTeams.push(teamFromMatchSlot(match, homeTeam, homePoint, winnerSide));
     outerTeams.push(teamFromMatchSlot(match, awayTeam, awayPoint, winnerSide));
@@ -694,13 +707,32 @@ function buildWorldCupKnockoutCircle(matches) {
     }
   });
 
+  const roundMatchesForSlot = (slotRound) => (
+    slotRound.key === 'round_of_32'
+      ? roundOf32Matches
+      : (roundsByKey.get(slotRound.key)?.matches || [])
+  );
+
   for (let layerIndex = 0; layerIndex < roundSlots.length - 1; layerIndex += 1) {
     const current = roundSlots[layerIndex];
     const next = roundSlots[layerIndex + 1];
+    const currentMatches = roundMatchesForSlot(current);
+    const nextMatches = roundMatchesForSlot(next);
     for (let index = 0; index < current.count; index += 1) {
+      const sourceMatch = currentMatches[index] || null;
+      const nextMatch = nextMatches[Math.floor(index / 2)] || null;
+      const sourceWinnerName = matchWinnerName(sourceMatch);
+      if (!sourceWinnerName || !matchHasTeam(nextMatch, sourceWinnerName)) continue;
+
       const from = slotPoint(current.count, index, current.radius);
       const to = slotPoint(next.count, Math.floor(index / 2), next.radius);
-      connectors.push({ x1: from.x, y1: from.y, x2: to.x, y2: to.y, active: false });
+      connectors.push({
+        x1: from.x,
+        y1: from.y,
+        x2: to.x,
+        y2: to.y,
+        active: matchWinnerName(nextMatch) === sourceWinnerName,
+      });
     }
   }
 
