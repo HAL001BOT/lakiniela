@@ -24,6 +24,13 @@
       <span class='standing-name'><%= s.name %></span>
     <% } %>
     <% if (i === 0 && !poolFinished) { %><span class='leader-badge' style='display:inline-flex;align-items:center;gap:4px;margin-left:8px;font-size:.72rem;padding:2px 8px;border-radius:999px;border:1px solid rgba(255,215,0,.55);background:rgba(255,215,0,.12);color:#ffe58a;'>👑 Top</span><% } %>
+    <small class='standing-stats'>
+      Aciertos <%= s.accuracy_pct === null ? '—' : `${s.accuracy_pct}%` %>
+      · Exactos <%= s.exact_pct === null ? '—' : `${s.exact_pct}%` %>
+      <% if (s.finished_picks) { %>
+        (<%= s.correct_picks %>/<%= s.finished_picks %> · <%= s.exact_picks %>/<%= s.finished_picks %>)
+      <% } %>
+    </small>
   </span>
   <strong><%= s.points %> pts<% if (poolFinished && i === 0) { %> <span aria-label='Winner'>👑</span><% } %></strong>
 </li>
@@ -184,9 +191,10 @@ if (shareBtn && standingsList) {
 
     try {
       const rows = Array.from(standingsList.querySelectorAll('li')).map((li, i) => {
-        const name = li.querySelector('a')?.textContent?.trim() || 'Player';
+        const name = li.querySelector('a, .standing-name')?.textContent?.trim() || 'Player';
+        const stats = li.querySelector('.standing-stats')?.textContent?.replace(/\s+/g, ' ').trim() || '';
         const pointsRaw = li.querySelector('strong')?.textContent?.replace('👑', '').trim() || '0 pts';
-        return { rank: i + 1, name, points: pointsRaw };
+        return { rank: i + 1, name, stats, points: pointsRaw };
       });
 
       const shot = document.createElement('div');
@@ -202,7 +210,7 @@ if (shareBtn && standingsList) {
         <ol>
           ${rows.map((r, i) => `
             <li class="${i === 0 ? 'is-top' : ''}">
-              <span class="left"><span class="rank">#${r.rank}</span>${r.name}</span>
+              <span class="left"><span class="rank">#${r.rank}</span><span class="snapshot-player"><strong>${r.name}</strong><small>${r.stats}</small></span></span>
               <strong>${r.points}${i === 0 ? ' 👑' : ''}</strong>
             </li>
           `).join('')}

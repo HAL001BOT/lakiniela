@@ -293,15 +293,59 @@ function matchHasStarted(match, nowMs = Date.now()) {
 }
 
 function poolStandings(poolId) {
-  return db.prepare(`
-    SELECT u.id, u.name, COALESCE(SUM(p.points),0) points, COUNT(p.id) picks
+  const rows = db.prepare(`
+    SELECT
+      u.id,
+      u.name,
+      COALESCE(SUM(p.points),0) points,
+      COUNT(p.id) picks,
+      SUM(CASE
+        WHEN m.status = 'finished' AND m.home_score IS NOT NULL AND m.away_score IS NOT NULL THEN 1
+        ELSE 0
+      END) finished_picks,
+      SUM(CASE
+        WHEN m.status = 'finished'
+          AND m.home_score IS NOT NULL
+          AND m.away_score IS NOT NULL
+          AND (
+            (p.pred_home > p.pred_away AND m.home_score > m.away_score)
+            OR (p.pred_home < p.pred_away AND m.home_score < m.away_score)
+            OR (p.pred_home = p.pred_away AND m.home_score = m.away_score)
+          )
+        THEN 1
+        ELSE 0
+      END) correct_picks,
+      SUM(CASE
+        WHEN m.status = 'finished'
+          AND m.home_score IS NOT NULL
+          AND m.away_score IS NOT NULL
+          AND p.pred_home = m.home_score
+          AND p.pred_away = m.away_score
+        THEN 1
+        ELSE 0
+      END) exact_picks
     FROM pool_members pm
     JOIN users u ON u.id = pm.user_id
     LEFT JOIN predictions p ON p.pool_id = pm.pool_id AND p.user_id = pm.user_id
+    LEFT JOIN matches m ON m.id = p.match_id
     WHERE pm.pool_id = ?
     GROUP BY u.id
     ORDER BY points DESC, picks DESC, u.name ASC
   `).all(poolId);
+
+  return rows.map((row) => {
+    const finishedPicks = Number(row.finished_picks || 0);
+    const correctPicks = Number(row.correct_picks || 0);
+    const exactPicks = Number(row.exact_picks || 0);
+    return {
+      ...row,
+      finished_picks: finishedPicks,
+      correct_picks: correctPicks,
+      exact_picks: exactPicks,
+      accuracy_pct: finishedPicks ? Math.round((correctPicks / finishedPicks) * 100) : null,
+      exact_pct: finishedPicks ? Math.round((exactPicks / finishedPicks) * 100) : null,
+    };
+  });
 }
 
 const CHART_COLORS = ['#4cc9ff', '#ffe58a', '#2fe2a8', '#ff7aa8', '#b794ff', '#ff9f43', '#7dd3fc', '#f87171'];

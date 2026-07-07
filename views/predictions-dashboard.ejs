@@ -52,6 +52,8 @@
               <tr>
                 <th class='points-column'>Puntos</th>
                 <th class='user-column'>Usuario</th>
+                <th class='stat-column'>Aciertos</th>
+                <th class='stat-column'>Exactos</th>
                 <% matches.forEach(match => { %>
                   <th class='match-column'>
                     <div class='matrix-fixture'>
@@ -83,6 +85,14 @@
                     <a href='/pools/<%= pool.id %>/users/<%= member.id %>/picks'><%= member.name %></a>
                     <% if (index === 0) { %><span class='matrix-leader' aria-label='Líder'>👑</span><% } %>
                   </th>
+                  <td class='stat-column'>
+                    <strong><%= member.accuracy_pct === null ? '—' : `${member.accuracy_pct}%` %></strong>
+                    <% if (member.finished_picks) { %><small><%= member.correct_picks %>/<%= member.finished_picks %></small><% } %>
+                  </td>
+                  <td class='stat-column'>
+                    <strong><%= member.exact_pct === null ? '—' : `${member.exact_pct}%` %></strong>
+                    <% if (member.finished_picks) { %><small><%= member.exact_picks %>/<%= member.finished_picks %></small><% } %>
+                  </td>
                   <% member.predictions.forEach(entry => { %>
                     <td class='pick-cell'>
                       <% if (entry.hidden) { %>

@@ -165,9 +165,15 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .standings-snapshot li.is-top{border-color:rgba(255,215,0,.65);background:linear-gradient(90deg,rgba(255,215,0,.2),rgba(255,215,0,.06))}
 .standings-snapshot .left{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.5rem}
 .standings-snapshot .rank{display:inline-flex;align-items:center;justify-content:center;min-width:42px;height:32px;border-radius:999px;font-size:1rem;background:rgba(255,255,255,.15);color:#dbe7ff}
+.standings-snapshot .snapshot-player{display:grid;gap:2px;min-width:0}
+.standings-snapshot .snapshot-player strong{font-size:1.35rem;color:#f5f8ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.standings-snapshot .snapshot-player small{color:#bcd0ff;font-size:.78rem;font-weight:700}
 .standings-snapshot strong{font-size:1.7rem;color:#f5f8ff}
 .standings{padding-left:18px}
 .standings li{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #274080}
+.standings li > span{min-width:0}
+.standings li > strong{white-space:nowrap;margin-left:12px}
+.standing-stats{display:block;margin-top:4px;color:var(--muted);font-size:.74rem;line-height:1.25}
 .standings li.standing-top{
   background:linear-gradient(90deg,rgba(255,215,0,.18),rgba(255,215,0,.04));
   border:1px solid rgba(255,215,0,.45);
@@ -419,6 +425,10 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .prediction-matrix .user-column{position:sticky;left:68px;z-index:3;width:190px;min-width:190px;text-align:left;background:#0d1840;box-shadow:8px 0 12px -12px #020617}
 .prediction-matrix thead .points-column,.prediction-matrix thead .user-column{z-index:5;background:#101d4a}
 .prediction-matrix .user-column a{color:var(--accent);font-weight:750}
+.prediction-matrix .stat-column{width:86px;min-width:86px;background:#0b1537}
+.prediction-matrix thead .stat-column{background:#101d4a;font-size:.78rem}
+.prediction-matrix .stat-column strong{display:block;color:#dfe8ff}
+.prediction-matrix .stat-column small{display:block;margin-top:2px;color:var(--muted);font-size:.68rem}
 .match-column{width:96px;min-width:96px}
 .matrix-fixture{display:grid;justify-items:center;gap:5px}
 .matrix-teams{display:flex;align-items:center;justify-content:center;gap:6px}
