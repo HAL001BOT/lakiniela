@@ -1266,7 +1266,7 @@ function shouldRunFrequentSyncNow() {
   if (live > 0) return true;
 
   const upcoming = db.prepare(`
-    SELECT kickoff_at
+    SELECT league, kickoff_at
     FROM matches
     WHERE external_id LIKE 'espn:%'
       AND status = 'scheduled'
@@ -1276,10 +1276,14 @@ function shouldRunFrequentSyncNow() {
 
   const now = Date.now();
   const gameWindowMs = 2.5 * 60 * 60 * 1000; // only poll during the expected live match window
+  const worldCupRefreshWindowMs = 48 * 60 * 60 * 1000;
 
   return upcoming.some((m) => {
     const kickoff = new Date(m.kickoff_at).getTime();
-    return Number.isFinite(kickoff) && now >= kickoff && now <= (kickoff + gameWindowMs);
+    return Number.isFinite(kickoff) && (
+      (now >= kickoff && now <= (kickoff + gameWindowMs))
+      || (m.league === 'FIFA World Cup' && kickoff >= now && kickoff <= (now + worldCupRefreshWindowMs))
+    );
   });
 }
 
