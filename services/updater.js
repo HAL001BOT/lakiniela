@@ -59,12 +59,13 @@ function upsertMatch(match) {
   if (existing) {
     db.prepare(`
       UPDATE matches
-      SET league = ?, season = ?, matchday = ?, home_team = ?, away_team = ?, home_logo = ?, away_logo = ?, kickoff_at = ?,
+      SET league = ?, season = ?, season_key = ?, matchday = ?, home_team = ?, away_team = ?, home_logo = ?, away_logo = ?, kickoff_at = ?,
           home_score = ?, away_score = ?, home_penalty_score = ?, away_penalty_score = ?, winner_side = ?, status = ?
       WHERE id = ?
     `).run(
       match.league,
       match.season,
+      match.seasonKey,
       match.matchday,
       match.home,
       match.away,
@@ -87,9 +88,10 @@ function upsertMatch(match) {
   const info = db.prepare(`
     INSERT INTO matches (
       external_id, league, season, matchday, home_team, away_team, home_logo, away_logo, kickoff_at,
+      season_key,
       home_score, away_score, home_penalty_score, away_penalty_score, winner_side, status
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     match.externalId,
     match.league,
@@ -100,6 +102,7 @@ function upsertMatch(match) {
     match.homeLogo || null,
     match.awayLogo || null,
     match.kickoffAt,
+    match.seasonKey,
     match.homeScore,
     match.awayScore,
     match.homePenaltyScore,
@@ -142,11 +145,14 @@ async function fetchEspnCompetitionRange(config, dates) {
       : null;
 
     const externalId = config.key === 'liga_mx' ? `espn:${ev.id}` : `espn:${config.key}:${ev.id}`;
+    const seasonYear = String(ev.season?.year || '');
+    const seasonSlug = String(ev.season?.slug || ev.season?.type || 'unknown');
 
     return {
       externalId,
       league: config.leagueLabel,
-      season: String(ev.season?.year || ''),
+      season: seasonYear,
+      seasonKey: `${seasonYear || 'unknown'}:${seasonSlug}`,
       matchday: comp.week?.number || null,
       home: home?.team?.displayName,
       away: away?.team?.displayName,

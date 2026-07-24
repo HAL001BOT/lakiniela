@@ -10,7 +10,7 @@ process.env.ADMIN_KEY = 'test-admin-key-at-least-16-characters';
 process.env.NODE_ENV = 'test';
 
 const db = require('../db');
-const { app, reconcileLigaMxPools } = require('../server');
+const { app, reconcileLigaMxPools, runFullSync } = require('../server');
 
 function csrfFrom(response) {
   const match = response.text.match(/name=['"]_csrf['"] value=['"]([^'"]+)['"]/)
@@ -69,12 +69,12 @@ async function main() {
     username: 'owner_user',
     email: 'owner@example.com',
   });
-  await owner.get('/admin/users').expect(403);
+  await owner.get('/admin/users').expect(200);
 
   const kickoff = new Date(Date.now() + (24 * 60 * 60 * 1000)).toISOString();
   const match = db.prepare(`
-    INSERT INTO matches (external_id, league, season, matchday, home_team, away_team, kickoff_at, status)
-    VALUES (?, 'Liga MX', '2026', 7, 'Home', 'Away', ?, 'scheduled')
+    INSERT INTO matches (external_id, league, season, season_key, matchday, home_team, away_team, kickoff_at, status)
+    VALUES (?, 'Liga MX', '2026', '2026:torneo-apertura', 7, 'Home', 'Away', ?, 'scheduled')
   `).run('espn:http-smoke-1', kickoff);
 
   const dashboard = await owner.get('/dashboard').expect(200);
@@ -114,9 +114,13 @@ async function main() {
     .expect(200);
 
   const secondMatch = db.prepare(`
-    INSERT INTO matches (external_id, league, season, matchday, home_team, away_team, kickoff_at, status)
-    VALUES (?, 'Liga MX', '2026', 7, 'Second Home', 'Second Away', ?, 'scheduled')
+    INSERT INTO matches (external_id, league, season, season_key, matchday, home_team, away_team, kickoff_at, status)
+    VALUES (?, 'Liga MX', '2026', '2026:torneo-apertura', 7, 'Second Home', 'Second Away', ?, 'scheduled')
   `).run('espn:http-smoke-2', kickoff);
+  const otherSeasonMatch = db.prepare(`
+    INSERT INTO matches (external_id, league, season, season_key, matchday, home_team, away_team, kickoff_at, status)
+    VALUES (?, 'Liga MX', '2026', '2026:torneo-clausura', 7, 'Wrong Home', 'Wrong Away', ?, 'scheduled')
+  `).run('espn:http-smoke-other-season', kickoff);
   const reconciliation = reconcileLigaMxPools();
   if (reconciliation.matchesAdded !== 1) {
     throw new Error('Pool reconciliation did not append the missing match');
@@ -126,6 +130,9 @@ async function main() {
   }
   if (!db.prepare('SELECT 1 FROM pool_matches WHERE pool_id = ? AND match_id = ?').get(pool.id, secondMatch.lastInsertRowid)) {
     throw new Error('Pool reconciliation did not preserve the matchday');
+  }
+  if (db.prepare('SELECT 1 FROM pool_matches WHERE pool_id = ? AND match_id = ?').get(pool.id, otherSeasonMatch.lastInsertRowid)) {
+    throw new Error('Pool reconciliation mixed seasons with the same matchday');
   }
 
   db.prepare('UPDATE matches SET kickoff_at = ? WHERE id = ?')
@@ -142,7 +149,6 @@ async function main() {
     throw new Error('Locked prediction overwrote the saved pick');
   }
 
-  db.prepare("UPDATE users SET role = 'admin' WHERE username = 'owner_user'").run();
   const ownerDashboard = await owner.get('/dashboard').expect(200);
   await owner.post('/logout')
     .type('form')
@@ -150,6 +156,41 @@ async function main() {
     .expect(302);
   await login(owner, 'owner_user');
   await owner.get('/admin/users').expect(200);
+
+  const adminPage = await owner.get('/admin/users').expect(200);
+  const ownerUser = db.prepare("SELECT id FROM users WHERE username = 'owner_user'").get();
+  await owner.post(`/admin/users/${ownerUser.id}/role`)
+    .type('form')
+    .send({ _csrf: csrfFrom(adminPage), role: 'user' })
+    .expect(409);
+
+  const outsiderUser = db.prepare("SELECT id FROM users WHERE username = 'outsider_user'").get();
+  db.prepare("UPDATE users SET role = 'admin', session_version = session_version + 1 WHERE id = ?").run(outsiderUser.id);
+  await login(outsider, 'outsider_user');
+  await outsider.get('/admin/users').expect(200);
+
+  const adminPageForRole = await owner.get('/admin/users').expect(200);
+  await owner.post(`/admin/users/${outsiderUser.id}/role`)
+    .type('form')
+    .send({ _csrf: csrfFrom(adminPageForRole), role: 'user' })
+    .expect(302);
+  await outsider.get('/admin/users').expect(302).expect('location', '/login');
+
+  const adminPageForReset = await owner.get('/admin/users').expect(200);
+  await owner.post(`/admin/users/${outsiderUser.id}/reset-password`)
+    .type('form')
+    .send({ _csrf: csrfFrom(adminPageForReset), new_password: 'new-secure-password' })
+    .expect(302);
+  await outsider.get('/dashboard').expect(302).expect('location', '/login');
+
+  const partialSync = await runFullSync('test', {
+    ligaMx: async () => ({ ok: true, updated: 0 }),
+    champions: async () => { throw new Error('champions unavailable'); },
+    worldCup: async () => ({ ok: true, updated: 0 }),
+  });
+  if (partialSync.ok || partialSync.errors.length !== 1 || !partialSync.ligaMx || !partialSync.worldCup) {
+    throw new Error('Partial sync failures must preserve successful competition results');
+  }
 
   console.log('HTTP smoke checks passed.');
 }

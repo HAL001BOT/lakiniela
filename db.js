@@ -3,6 +3,9 @@ const path = require('path');
 const fs = require('fs');
 
 const dbPath = process.env.DB_PATH || path.join(__dirname, 'data', 'lakiniela.db');
+if (process.env.NODE_ENV === 'production' && !process.env.DB_PATH) {
+  throw new Error('DB_PATH must point to persistent storage in production.');
+}
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
@@ -16,6 +19,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT UNIQUE NOT NULL,
   password_hash TEXT NOT NULL,
   role TEXT DEFAULT 'user',
+  session_version INTEGER NOT NULL DEFAULT 1,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -27,6 +31,7 @@ CREATE TABLE IF NOT EXISTS pools (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   competition_type TEXT DEFAULT 'liga_mx',
   current_matchday INTEGER,
+  current_season_key TEXT,
   FOREIGN KEY(owner_id) REFERENCES users(id)
 );
 
@@ -45,6 +50,7 @@ CREATE TABLE IF NOT EXISTS matches (
   external_id TEXT,
   league TEXT DEFAULT 'Liga MX',
   season TEXT,
+  season_key TEXT,
   matchday INTEGER,
   home_team TEXT NOT NULL,
   away_team TEXT NOT NULL,
@@ -117,6 +123,12 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
   applied_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS job_locks (
+  name TEXT PRIMARY KEY,
+  owner TEXT NOT NULL,
+  locked_until INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_at);
 `);
 
@@ -147,6 +159,12 @@ runMigration('001_legacy_columns', () => {
   addColumn('users', "role TEXT DEFAULT 'user'");
   addColumn('pools', "competition_type TEXT DEFAULT 'liga_mx'");
   addColumn('pools', 'current_matchday INTEGER');
+});
+
+runMigration('002_seasons_and_sessions', () => {
+  addColumn('matches', 'season_key TEXT');
+  addColumn('pools', 'current_season_key TEXT');
+  addColumn('users', 'session_version INTEGER NOT NULL DEFAULT 1');
 });
 
 const duplicateExternalMatches = db.prepare(`

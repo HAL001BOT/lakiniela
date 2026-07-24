@@ -20,9 +20,15 @@ npm start
 ```
 Open: `http://localhost:3090`
 
-## Env (optional)
+## Environment
 - `ADMIN_KEY` → protects admin endpoints (`/admin/matches/:id/final`, `/admin/sync`)
 - `SESSION_SECRET`
+- `DB_PATH` → SQLite file path. **Required in production** and must point to
+  persistent storage (for example `/var/data/lakiniela.db` on a mounted Render disk).
+
+Production startup fails closed when `SESSION_SECRET`, `ADMIN_KEY`, or `DB_PATH`
+is missing. Configure a single web instance when using SQLite; the database-backed
+job lock prevents duplicate syncs only when every process shares the same DB file.
 
 ## Notes
 - Sync now uses ESPN public scoreboard feed (no API key required).

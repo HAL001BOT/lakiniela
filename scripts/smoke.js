@@ -77,6 +77,19 @@ function main() {
     throw new Error('Matchday selection must preserve irregular round sizes');
   }
 
+  const sameNumberDifferentSeasons = selectActiveMatchday([
+    { ...makeMatch(80, 7, '2026-05-01T20:00:00Z', 'Clausura Home', 'Clausura Away'), season_key: '2026:torneo-clausura' },
+    { ...makeMatch(81, 7, '2026-08-01T20:00:00Z', 'Apertura Home', 'Apertura Away'), season_key: '2026:torneo-apertura' },
+  ], {
+    nowMs: new Date('2026-07-30T12:00:00Z').getTime(),
+  });
+  if (
+    sameNumberDifferentSeasons.seasonKey !== '2026:torneo-apertura'
+    || sameNumberDifferentSeasons.matches.length !== 1
+  ) {
+    throw new Error('Equal matchday numbers from different seasons must remain isolated');
+  }
+
   const selectedWithIncompleteMetadata = selectActiveMatchday([
     makeMatch(90, null, '2026-08-06T20:00:00Z', 'Unknown Home', 'Unknown Away'),
     ...irregularMatchdays,

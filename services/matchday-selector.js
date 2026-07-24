@@ -10,6 +10,10 @@ function matchKey(match) {
   return match?.id ?? match?.externalId;
 }
 
+function seasonKey(match) {
+  return String(match?.season_key || match?.seasonKey || match?.season || 'unknown');
+}
+
 function orderedMatches(matches) {
   return [...(matches || [])]
     .filter((match) => Number.isFinite(kickoffMs(match)))
@@ -41,13 +45,14 @@ function roundsFromMatchday(matches) {
   for (const match of orderedMatches(matches)) {
     const matchday = Number(match.matchday);
     if (!Number.isInteger(matchday) || matchday < 1) continue;
-    if (!grouped.has(matchday)) grouped.set(matchday, []);
-    grouped.get(matchday).push(match);
+    const key = `${seasonKey(match)}:${matchday}`;
+    if (!grouped.has(key)) grouped.set(key, { matchday, seasonKey: seasonKey(match), matches: [] });
+    grouped.get(key).matches.push(match);
   }
 
-  return [...grouped.entries()]
-    .sort(([a], [b]) => a - b)
-    .map(([matchday, roundMatches]) => ({ matchday, matches: roundMatches, source: 'matchday' }));
+  return [...grouped.values()]
+    .sort((a, b) => kickoffMs(a.matches[0]) - kickoffMs(b.matches[0]))
+    .map((round) => ({ ...round, source: 'matchday' }));
 }
 
 function attachUnassignedMatches(rounds, matches) {

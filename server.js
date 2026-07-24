@@ -164,6 +164,7 @@ function createIpRateLimiter({ scope, windowMs, max, message }) {
 }
 
 const loginLimiter = createIpRateLimiter({ scope: 'login', windowMs: 10 * 60 * 1000, max: 30, message: 'Too many login attempts. Try again soon.' });
+const registerLimiter = createIpRateLimiter({ scope: 'register', windowMs: 60 * 60 * 1000, max: 10, message: 'Too many registrations. Try again later.' });
 const adminLimiter = createIpRateLimiter({ scope: 'admin', windowMs: 60 * 1000, max: 120, message: 'Too many admin requests.' });
 
 function csrfPostGuard(req, res, next) {
@@ -182,14 +183,37 @@ function csrfPostGuard(req, res, next) {
 
 app.use(csrfPostGuard);
 
+function refreshSessionUser(req) {
+  const sessionUser = req.session?.user;
+  if (!sessionUser) return null;
+  const user = db.prepare('SELECT id, name, username, email, role, session_version FROM users WHERE id = ?').get(sessionUser.id);
+  if (!user || Number(sessionUser.sessionVersion) !== Number(user.session_version)) return null;
+  req.session.user = {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    email: user.email,
+    role: user.role || 'user',
+    sessionVersion: Number(user.session_version),
+  };
+  return req.session.user;
+}
+
 function auth(req, res, next) {
-  if (!req.session.user) return res.redirect('/login');
+  if (!refreshSessionUser(req)) {
+    req.session?.destroy(() => {});
+    return res.redirect('/login');
+  }
   next();
 }
 
 function admin(req, res, next) {
-  if (!req.session.user) return res.redirect('/login');
-  if (req.session.user.role !== 'admin') return res.status(403).send('Admin only');
+  const user = refreshSessionUser(req);
+  if (!user) {
+    req.session?.destroy(() => {});
+    return res.redirect('/login');
+  }
+  if (user.role !== 'admin') return res.status(403).send('Admin only');
   next();
 }
 
@@ -254,7 +278,8 @@ function isAllowedAdminSource(req) {
 }
 
 function isAdminKeyValid(headerValue = '') {
-  const expected = adminKey || 'dev-admin';
+  if (!adminKey) return false;
+  const expected = adminKey;
   const a = Buffer.from(String(headerValue));
   const b = Buffer.from(String(expected));
   if (a.length !== b.length) return false;
@@ -838,6 +863,7 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
     return {
       matches: selected.matches,
       matchday: selected.matchday,
+      seasonKey: selected.seasonKey || null,
       roundNumber: selected.matchday,
       roundLabel: competition.roundLabel,
       selectionSource: selected.source,
@@ -986,16 +1012,17 @@ function getPoolMatches(poolId) {
   return out;
 }
 
-function ligaMxMatchesForMatchday(matchday) {
-  if (!Number.isInteger(Number(matchday)) || Number(matchday) < 1) return [];
+function ligaMxMatchesForMatchday(seasonKey, matchday) {
+  if (!seasonKey || !Number.isInteger(Number(matchday)) || Number(matchday) < 1) return [];
   return db.prepare(`
     SELECT *
     FROM matches
     WHERE league = 'Liga MX'
       AND external_id LIKE 'espn:%'
+      AND season_key = ?
       AND matchday = ?
     ORDER BY kickoff_at ASC, id ASC
-  `).all(Number(matchday));
+  `).all(String(seasonKey), Number(matchday));
 }
 
 function ensurePoolMatches(pool) {
@@ -1010,16 +1037,19 @@ function reconcileLigaMxPools() {
   for (const pool of pools) {
     const matches = getPoolMatches(pool.id);
     let currentMatchday = Number(pool.current_matchday);
+    let currentSeasonKey = String(pool.current_season_key || '');
 
-    if (!Number.isInteger(currentMatchday) || currentMatchday < 1) {
-      const matchdays = [...new Set(
+    if (!currentSeasonKey || !Number.isInteger(currentMatchday) || currentMatchday < 1) {
+      const rounds = [...new Set(
         matches
-          .map((match) => Number(match.matchday))
-          .filter((matchday) => Number.isInteger(matchday) && matchday > 0)
+          .filter((match) => match.season_key && Number.isInteger(Number(match.matchday)) && Number(match.matchday) > 0)
+          .map((match) => `${match.season_key}\u0000${Number(match.matchday)}`)
       )];
-      if (matchdays.length === 1) {
-        currentMatchday = matchdays[0];
-        db.prepare('UPDATE pools SET current_matchday = ? WHERE id = ?').run(currentMatchday, pool.id);
+      if (rounds.length === 1) {
+        [currentSeasonKey, currentMatchday] = rounds[0].split('\u0000');
+        currentMatchday = Number(currentMatchday);
+        db.prepare('UPDATE pools SET current_season_key = ?, current_matchday = ? WHERE id = ?')
+          .run(currentSeasonKey, currentMatchday, pool.id);
         matchdaysSet += 1;
       }
     }
@@ -1032,14 +1062,16 @@ function reconcileLigaMxPools() {
       matchesAdded += Number(after) - Number(before);
       if (snapshot.matchday) {
         currentMatchday = snapshot.matchday;
-        db.prepare('UPDATE pools SET current_matchday = ? WHERE id = ?').run(currentMatchday, pool.id);
+        currentSeasonKey = snapshot.seasonKey;
+        db.prepare('UPDATE pools SET current_season_key = ?, current_matchday = ? WHERE id = ?')
+          .run(currentSeasonKey, currentMatchday, pool.id);
         matchdaysSet += 1;
       }
     }
 
-    if (Number.isInteger(currentMatchday) && currentMatchday > 0) {
+    if (currentSeasonKey && Number.isInteger(currentMatchday) && currentMatchday > 0) {
       const before = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
-      lockPoolMatches(pool.id, ligaMxMatchesForMatchday(currentMatchday));
+      lockPoolMatches(pool.id, ligaMxMatchesForMatchday(currentSeasonKey, currentMatchday));
       const after = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
       matchesAdded += Number(after) - Number(before);
     }
@@ -1110,14 +1142,25 @@ function shouldRunFrequentSyncNow() {
 app.get('/', (req, res) => (req.session.user ? res.redirect('/dashboard') : res.redirect('/login')));
 
 app.get('/register', (_req, res) => res.render('register', { error: null }));
-app.post('/register', (req, res) => {
+app.post('/register', registerLimiter, async (req, res) => {
   const input = parseBody(registerSchema, req.body);
   if (!input) return res.render('register', { error: 'Invalid fields. Check username/email/password format.' });
   try {
-    const hash = bcrypt.hashSync(input.password, 10);
-    const info = db.prepare('INSERT INTO users (name, username, email, password_hash, role) VALUES (?, ?, ?, ?, ?)')
-      .run(input.name, input.username, input.email.toLowerCase(), hash, 'user');
-    const sessionUser = { id: info.lastInsertRowid, name: input.name, username: input.username, email: input.email.toLowerCase(), role: 'user' };
+    const hash = await bcrypt.hash(input.password, 10);
+    const created = db.transaction(() => {
+      const role = db.prepare('SELECT COUNT(*) c FROM users').get().c === 0 ? 'admin' : 'user';
+      const info = db.prepare('INSERT INTO users (name, username, email, password_hash, role) VALUES (?, ?, ?, ?, ?)')
+        .run(input.name, input.username, input.email.toLowerCase(), hash, role);
+      return { id: info.lastInsertRowid, role };
+    })();
+    const sessionUser = {
+      id: created.id,
+      name: input.name,
+      username: input.username,
+      email: input.email.toLowerCase(),
+      role: created.role,
+      sessionVersion: 1,
+    };
     establishUserSession(req, sessionUser, (error) => {
       if (error) return res.status(500).send('Could not create session.');
       logEvent('auth.register.success', { username: input.username }, req, true);
@@ -1131,15 +1174,22 @@ app.post('/register', (req, res) => {
 });
 
 app.get('/login', (_req, res) => res.render('login', { error: null }));
-app.post('/login', loginLimiter, (req, res) => {
+app.post('/login', loginLimiter, async (req, res) => {
   const input = parseBody(loginSchema, req.body);
   if (!input) return res.render('login', { error: 'Invalid credentials.' });
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(input.username.toLowerCase());
-  if (!user || !bcrypt.compareSync(input.password, user.password_hash)) {
+  if (!user || !await bcrypt.compare(input.password, user.password_hash)) {
     logEvent('auth.login.failed', { username: input.username.toLowerCase() }, req, false);
     return res.render('login', { error: 'Invalid credentials.' });
   }
-  const sessionUser = { id: user.id, name: user.name, username: user.username, email: user.email, role: user.role || 'user' };
+  const sessionUser = {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    email: user.email,
+    role: user.role || 'user',
+    sessionVersion: Number(user.session_version || 1),
+  };
   establishUserSession(req, sessionUser, (error) => {
     if (error) return res.status(500).send('Could not create session.');
     logEvent('auth.login.success', { username: user.username }, req, true);
@@ -1154,13 +1204,13 @@ app.get('/account/password', auth, (req, res) => {
   res.render('change-password', { error: null, ok: false });
 });
 
-app.post('/account/password', auth, (req, res) => {
+app.post('/account/password', auth, async (req, res) => {
   const current = String(req.body.current_password || '');
   const nextPw = String(req.body.new_password || '');
   const confirm = String(req.body.confirm_password || '');
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.session.user.id);
-  if (!user || !bcrypt.compareSync(current, user.password_hash)) {
+  if (!user || !await bcrypt.compare(current, user.password_hash)) {
     return res.status(400).render('change-password', { error: 'Current password is incorrect.', ok: false });
   }
   if (nextPw.length < 8) {
@@ -1170,8 +1220,9 @@ app.post('/account/password', auth, (req, res) => {
     return res.status(400).render('change-password', { error: 'New passwords do not match.', ok: false });
   }
 
-  const hash = bcrypt.hashSync(nextPw, 10);
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, user.id);
+  const hash = await bcrypt.hash(nextPw, 10);
+  db.prepare('UPDATE users SET password_hash = ?, session_version = session_version + 1 WHERE id = ?').run(hash, user.id);
+  req.session.user.sessionVersion = Number(user.session_version || 1) + 1;
   return res.render('change-password', { error: null, ok: true });
 });
 
@@ -1304,12 +1355,12 @@ app.get('/admin/users', admin, (req, res) => {
   });
 });
 
-app.post('/admin/users/create', admin, (req, res) => {
+app.post('/admin/users/create', admin, async (req, res) => {
   const input = parseBody(adminCreateUserSchema, req.body);
   if (!input) return res.redirect('/admin/users?error=invalid');
 
   try {
-    const hash = bcrypt.hashSync(input.password, 10);
+    const hash = await bcrypt.hash(input.password, 10);
     const info = db.prepare('INSERT INTO users (name, username, email, password_hash, role) VALUES (?, ?, ?, ?, ?)')
       .run(input.name, input.username, input.email.toLowerCase(), hash, input.role);
     logEvent('admin.user.create', { targetUserId: info.lastInsertRowid, username: input.username, role: input.role }, req, true);
@@ -1324,8 +1375,13 @@ app.post('/admin/users/:id/role', admin, (req, res) => {
   const id = Number(req.params.id);
   const role = req.body.role === 'admin' ? 'admin' : 'user';
   if (!Number.isInteger(id)) return res.redirect('/admin/users');
-  db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
-  if (req.session.user.id === id) req.session.user.role = role;
+  const target = db.prepare('SELECT id, role FROM users WHERE id = ?').get(id);
+  if (!target) return res.redirect('/admin/users');
+  if (role === 'user' && target.role === 'admin') {
+    const adminCount = db.prepare("SELECT COUNT(*) c FROM users WHERE role = 'admin'").get().c;
+    if (id === req.session.user.id || adminCount <= 1) return res.status(409).send('Cannot remove the last or current administrator.');
+  }
+  db.prepare('UPDATE users SET role = ?, session_version = session_version + 1 WHERE id = ?').run(role, id);
   logEvent('admin.user.role', { targetUserId: id, role }, req, true);
   res.redirect('/admin/users');
 });
@@ -1352,12 +1408,12 @@ app.post('/admin/users/:id/delete', admin, (req, res) => {
   res.redirect('/admin/users');
 });
 
-app.post('/admin/users/:id/reset-password', admin, (req, res) => {
+app.post('/admin/users/:id/reset-password', admin, async (req, res) => {
   const id = Number(req.params.id);
   const newPassword = String(req.body.new_password || '');
   if (!Number.isInteger(id) || newPassword.length < 8) return res.redirect('/admin/users');
-  const hash = bcrypt.hashSync(newPassword, 10);
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, id);
+  const hash = await bcrypt.hash(newPassword, 10);
+  db.prepare('UPDATE users SET password_hash = ?, session_version = session_version + 1 WHERE id = ?').run(hash, id);
   logEvent('admin.user.reset_password', { targetUserId: id }, req, true);
   res.redirect('/admin/users');
 });
@@ -1396,8 +1452,17 @@ app.post('/pools/create', auth, (req, res) => {
   const snapshot = getUpcomingUniqueScheduledMatches(competitionType);
 
   const tx = db.transaction(() => {
-    const info = db.prepare('INSERT INTO pools (name, code, owner_id, competition_type, current_matchday) VALUES (?, ?, ?, ?, ?)')
-      .run(input.name, poolCode, req.session.user.id, competitionType, competitionType === 'liga_mx' ? snapshot.matchday : null);
+    const info = db.prepare(`
+      INSERT INTO pools (name, code, owner_id, competition_type, current_matchday, current_season_key)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      input.name,
+      poolCode,
+      req.session.user.id,
+      competitionType,
+      competitionType === 'liga_mx' ? snapshot.matchday : null,
+      competitionType === 'liga_mx' ? snapshot.seasonKey : null
+    );
     db.prepare('INSERT INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(info.lastInsertRowid, req.session.user.id);
     lockPoolMatches(info.lastInsertRowid, snapshot.matches);
   });
@@ -1651,21 +1716,53 @@ app.post('/admin/matches/:id/final', (req, res) => {
 });
 
 let syncInProgress = false;
+const syncLockOwner = `${process.pid}:${crypto.randomUUID()}`;
 
-async function runFullSync(trigger = 'manual') {
+function acquireSyncLock(ttlMs = 10 * 60 * 1000) {
+  const now = Date.now();
+  const result = db.prepare(`
+    INSERT INTO job_locks (name, owner, locked_until)
+    VALUES ('score-sync', ?, ?)
+    ON CONFLICT(name) DO UPDATE SET
+      owner = excluded.owner,
+      locked_until = excluded.locked_until
+    WHERE job_locks.locked_until < ?
+  `).run(syncLockOwner, now + ttlMs, now);
+  return result.changes === 1;
+}
+
+function releaseSyncLock() {
+  db.prepare("DELETE FROM job_locks WHERE name = 'score-sync' AND owner = ?").run(syncLockOwner);
+}
+
+async function runFullSync(trigger = 'manual', overrides = {}) {
   if (syncInProgress) return { ok: false, skipped: true, reason: 'sync_in_progress' };
+  if (!acquireSyncLock()) return { ok: false, skipped: true, reason: 'distributed_sync_in_progress' };
   syncInProgress = true;
   try {
-    const [ligaMx, champions, worldCup] = await Promise.all([
-      syncLigaMxScores(),
-      syncChampionsLeagueScores(),
-      syncWorldCupScores(),
-    ]);
-    const ligaMxPools = reconcileLigaMxPools();
-    const worldCupPools = appendActiveWorldCupRoundToPools();
-    return { ok: true, trigger, ligaMx, champions, worldCup, ligaMxPools, worldCupPools };
+    const jobs = [
+      ['ligaMx', overrides.ligaMx || syncLigaMxScores],
+      ['champions', overrides.champions || syncChampionsLeagueScores],
+      ['worldCup', overrides.worldCup || syncWorldCupScores],
+    ];
+    const settled = await Promise.allSettled(jobs.map(([, run]) => run()));
+    const result = { ok: true, trigger, errors: [] };
+
+    settled.forEach((outcome, index) => {
+      const key = jobs[index][0];
+      if (outcome.status === 'fulfilled') result[key] = outcome.value;
+      else {
+        result.ok = false;
+        result.errors.push({ competition: key, error: outcome.reason?.message || String(outcome.reason) });
+      }
+    });
+
+    if (result.ligaMx) result.ligaMxPools = reconcileLigaMxPools();
+    if (result.worldCup) result.worldCupPools = appendActiveWorldCupRoundToPools();
+    return result;
   } finally {
     syncInProgress = false;
+    releaseSyncLock();
   }
 }
 
@@ -1677,14 +1774,14 @@ app.post('/admin/sync', async (req, res) => {
   try {
     const result = await runFullSync('admin');
     if (result.skipped) return res.status(409).json(result);
-    logEvent('admin.sync.ok', {
+    logEvent(result.ok ? 'admin.sync.ok' : 'admin.sync.partial', {
       ligaMxUpdated: result.ligaMx?.updated || 0,
       championsUpdated: result.champions?.updated || 0,
       worldCupUpdated: result.worldCup?.updated || 0,
       ligaMxPools: result.ligaMxPools,
       worldCupPools: result.worldCupPools,
     }, req, true);
-    return res.json(result);
+    return res.status(result.ok ? 200 : (result.errors.length === 3 ? 502 : 207)).json(result);
   } catch (e) {
     logEvent('admin.sync.failed', { error: e.message }, req, false);
     return res.status(500).json({ ok: false, error: e.message });
@@ -1695,7 +1792,7 @@ async function runLoggedSync(trigger) {
   try {
     const result = await runFullSync(trigger);
     if (result.skipped) return;
-    logEvent(`sync.${trigger}.ok`, {
+    logEvent(`sync.${trigger}.${result.ok ? 'ok' : 'partial'}`, {
       ligaMxUpdated: result.ligaMx?.updated || 0,
       championsUpdated: result.champions?.updated || 0,
       worldCupUpdated: result.worldCup?.updated || 0,
