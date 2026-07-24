@@ -44,6 +44,71 @@ function main() {
   }
   mustExist(path.join(__dirname, '..', 'views', 'predictions-dashboard.ejs'));
 
+  const { selectActiveMatchday, roundsFromSchedule } = require('../services/matchday-selector');
+  const makeMatch = (id, matchday, kickoffAt, home, away, status = 'scheduled') => ({
+    id,
+    matchday,
+    kickoff_at: kickoffAt,
+    home_team: home,
+    away_team: away,
+    status,
+  });
+
+  const irregularMatchdays = [
+    ...Array.from({ length: 8 }, (_, i) => makeMatch(
+      i + 1,
+      4,
+      `2026-08-${String(1 + Math.floor(i / 3)).padStart(2, '0')}T20:00:00Z`,
+      `J4 Home ${i}`,
+      `J4 Away ${i}`
+    )),
+    ...Array.from({ length: 10 }, (_, i) => makeMatch(
+      i + 20,
+      5,
+      `2026-08-${String(8 + Math.floor(i / 3)).padStart(2, '0')}T20:00:00Z`,
+      `J5 Home ${i}`,
+      `J5 Away ${i}`
+    )),
+  ];
+  const selectedIrregularRound = selectActiveMatchday(irregularMatchdays, {
+    nowMs: new Date('2026-08-07T12:00:00Z').getTime(),
+  });
+  if (selectedIrregularRound.matchday !== 5 || selectedIrregularRound.matches.length !== 10) {
+    throw new Error('Matchday selection must preserve irregular round sizes');
+  }
+
+  const selectedWithIncompleteMetadata = selectActiveMatchday([
+    makeMatch(90, null, '2026-08-06T20:00:00Z', 'Unknown Home', 'Unknown Away'),
+    ...irregularMatchdays,
+  ], {
+    nowMs: new Date('2026-08-07T12:00:00Z').getTime(),
+  });
+  if (selectedWithIncompleteMetadata.matchday !== 5 || selectedWithIncompleteMetadata.matches.length !== 10) {
+    throw new Error('Explicit matchday metadata must win over date-based fallback');
+  }
+
+  const thursdayMatch = makeMatch(100, 6, '2026-08-13T20:00:00Z', 'Thursday Home', 'Thursday Away');
+  const selectedThursdayRound = selectActiveMatchday([thursdayMatch], {
+    nowMs: new Date('2026-08-12T12:00:00Z').getTime(),
+  });
+  if (selectedThursdayRound.matches[0]?.id !== thursdayMatch.id) {
+    throw new Error('Matchday selection must include Monday/Thursday fixtures');
+  }
+
+  const fallbackRounds = roundsFromSchedule([
+    makeMatch(200, null, '2026-08-01T20:00:00Z', 'A', 'B'),
+    makeMatch(201, null, '2026-08-02T20:00:00Z', 'C', 'D'),
+    makeMatch(202, null, '2026-08-08T20:00:00Z', 'A', 'E'),
+  ]);
+  if (fallbackRounds.length !== 2 || fallbackRounds[0].matches.length !== 2) {
+    throw new Error('Schedule fallback must split rounds when a team repeats');
+  }
+
+  const poolColumns = require('../db').prepare('PRAGMA table_info(pools)').all().map((column) => column.name);
+  if (!poolColumns.includes('current_matchday')) {
+    throw new Error('Pools must persist their current matchday');
+  }
+
   console.log('Smoke checks passed.');
 }
 

@@ -8,6 +8,7 @@ const { z } = require('zod');
 const db = require('./db');
 const { recalcPointsForMatch, syncLigaMxScores, syncChampionsLeagueScores, syncWorldCupScores } = require('./services/updater');
 const { predictionStatus, groupPredictionMatches } = require('./services/predictions-dashboard');
+const { selectActiveMatchday } = require('./services/matchday-selector');
 
 const app = express();
 const PORT = process.env.PORT || 3090;
@@ -433,16 +434,6 @@ function worldCupRoundMatches(matches, roundKey) {
   return round ? round.matches : [];
 }
 
-function inferJornadaFromAnchor(matches) {
-  // Anchor requested by product: current visible matchday is Jornada 9.
-  const anchorJornada = 9;
-  const anchorDate = new Date('2026-03-03T00:00:00-06:00').getTime();
-  const firstKick = Math.min(...matches.map((m) => new Date(m.kickoff_at).getTime()).filter(Number.isFinite));
-  if (!Number.isFinite(firstKick) || !Number.isFinite(anchorDate)) return anchorJornada;
-  const weeks = Math.round((firstKick - anchorDate) / (7 * 24 * 60 * 60 * 1000));
-  return Math.max(1, anchorJornada + weeks);
-}
-
 function normalizeTeamName(name = '') {
   return String(name || '')
     .normalize('NFD')
@@ -805,36 +796,6 @@ function getActiveWorldCupRound(matches) {
   return { matches: selected.matches, roundNumber: selected.matches.length, roundLabel: selected.label };
 }
 
-function deriveLigaMxMatchday(matches) {
-  if (!matches.length) return null;
-
-  const knownMatchdays = [
-    {
-      number: 13,
-      fixtures: [
-        'puebla|fc juarez',
-        'necaxa|mazatlan fc',
-        'tijuana|tigres uanl',
-        'monterrey|atletico de san luis',
-        'queretaro|toluca',
-        'leon|atlas',
-        'cruz azul|pachuca',
-        'santos|america',
-        'guadalajara|pumas unam',
-        'queretaro|fc juarez',
-      ],
-    },
-  ];
-
-  const signatures = new Set(matches.map((m) => `${normalizeTeamName(m.home_team)}|${normalizeTeamName(m.away_team)}`));
-  for (const candidate of knownMatchdays) {
-    const overlap = [...signatures].filter((sig) => candidate.fixtures.includes(sig)).length;
-    if (overlap >= Math.min(6, signatures.size)) return candidate.number;
-  }
-
-  return null;
-}
-
 function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
   const competition = getCompetition(competitionType);
   const windowClause = competition.startDate && competition.endDate
@@ -852,7 +813,7 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
     ORDER BY kickoff_at ASC
   `).all(...params);
 
-  if (!all.length) return { matches: [], roundNumber: competitionType === 'liga_mx' ? 9 : 1, roundLabel: competition.roundLabel };
+  if (!all.length) return { matches: [], roundNumber: competitionType === 'liga_mx' ? null : 1, roundLabel: competition.roundLabel };
 
   if (competitionType === 'world_cup_2026') {
     return getActiveWorldCupRound(all);
@@ -861,56 +822,14 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
   const now = Date.now();
 
   if (competitionType === 'liga_mx') {
-    const chicagoDate = new Intl.DateTimeFormat('en-CA', {
-      timeZone: 'America/Chicago',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    });
-    const chicagoWeekday = new Intl.DateTimeFormat('en-US', {
-      timeZone: 'America/Chicago',
-      weekday: 'short',
-    });
-    const dateKey = (iso) => chicagoDate.format(new Date(iso));
-    const weekdayKey = (iso) => chicagoWeekday.format(new Date(iso));
-    const allowedDays = new Set(['Tue', 'Wed', 'Fri', 'Sat', 'Sun']);
-
-    const weekendMatches = all.filter((m) => {
-      const day = weekdayKey(m.kickoff_at);
-      const kickoff = new Date(m.kickoff_at).getTime();
-      return allowedDays.has(day) && Number.isFinite(kickoff);
-    });
-
-    const byDate = new Map();
-    for (const match of weekendMatches) {
-      const key = dateKey(match.kickoff_at);
-      if (!byDate.has(key)) byDate.set(key, []);
-      byDate.get(key).push(match);
-    }
-
-    const orderedDates = [...byDate.keys()].sort();
-    let startIdx = orderedDates.findIndex((key) => {
-      const dayMatches = byDate.get(key) || [];
-      return dayMatches.some((m) => new Date(m.kickoff_at).getTime() >= now - (12 * 60 * 60 * 1000));
-    });
-    if (startIdx < 0) startIdx = Math.max(0, orderedDates.length - 3);
-
-    const selected = [];
-    for (let i = startIdx; i < orderedDates.length; i += 1) {
-      selected.push(...(byDate.get(orderedDates[i]) || []));
-      if (selected.length >= competition.expectedMatches || i >= startIdx + 4) break;
-    }
-
-    if (selected.length) {
-      const explicitMatchday = selected
-        .map((m) => Number(m.matchday))
-        .filter((n) => Number.isInteger(n) && n > 0)
-        .sort((a, b) => b - a)[0];
-
-      const derivedLigaMxMatchday = deriveLigaMxMatchday(selected);
-      const roundNumber = explicitMatchday || derivedLigaMxMatchday || inferJornadaFromAnchor(selected);
-      return { matches: selected, roundNumber, roundLabel: competition.roundLabel };
-    }
+    const selected = selectActiveMatchday(all, { nowMs: now });
+    return {
+      matches: selected.matches,
+      matchday: selected.matchday,
+      roundNumber: selected.matchday,
+      roundLabel: competition.roundLabel,
+      selectionSource: selected.source,
+    };
   }
 
   const buildRounds = (list) => {
@@ -941,7 +860,7 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
   };
 
   const rounds = buildRounds(all);
-  if (!rounds.length) return { matches: [], roundNumber: competitionType === 'liga_mx' ? 9 : 1, roundLabel: competition.roundLabel };
+  if (!rounds.length) return { matches: [], roundNumber: 1, roundLabel: competition.roundLabel };
 
   let selected = null;
 
@@ -964,8 +883,7 @@ function getUpcomingUniqueScheduledMatches(competitionType = 'liga_mx') {
     .filter((n) => Number.isInteger(n) && n > 0)
     .sort((a, b) => b - a)[0];
 
-  const derivedLigaMxMatchday = competitionType === 'liga_mx' ? deriveLigaMxMatchday(selected) : null;
-  const roundNumber = explicitMatchday || derivedLigaMxMatchday || (competitionType === 'liga_mx' ? inferJornadaFromAnchor(selected) : 1);
+  const roundNumber = explicitMatchday || 1;
   return { matches: selected, roundNumber, roundLabel: competition.roundLabel };
 }
 
@@ -1056,17 +974,16 @@ function getPoolMatches(poolId) {
   return out;
 }
 
-function repairPoolMatches(poolId, competitionType = 'liga_mx') {
-  const snapshotMatches = getUpcomingUniqueScheduledMatches(competitionType).matches || [];
-  if (!snapshotMatches.length) return;
-
-  const tx = db.transaction(() => {
-    db.prepare('DELETE FROM predictions WHERE pool_id = ?').run(poolId);
-    db.prepare('DELETE FROM pool_matches WHERE pool_id = ?').run(poolId);
-    lockPoolMatches(poolId, snapshotMatches);
-  });
-
-  tx();
+function ligaMxMatchesForMatchday(matchday) {
+  if (!Number.isInteger(Number(matchday)) || Number(matchday) < 1) return [];
+  return db.prepare(`
+    SELECT *
+    FROM matches
+    WHERE league = 'Liga MX'
+      AND external_id LIKE 'espn:%'
+      AND matchday = ?
+    ORDER BY kickoff_at ASC, id ASC
+  `).all(Number(matchday));
 }
 
 function ensurePoolMatches(pool) {
@@ -1075,8 +992,12 @@ function ensurePoolMatches(pool) {
 
   if (!matches.length) {
     // Backfill old pools created before match-locking feature.
-    const snapshotMatches = getUpcomingUniqueScheduledMatches(competitionType).matches;
-    lockPoolMatches(pool.id, snapshotMatches);
+    const snapshot = getUpcomingUniqueScheduledMatches(competitionType);
+    lockPoolMatches(pool.id, snapshot.matches);
+    if (competitionType === 'liga_mx' && snapshot.matchday) {
+      db.prepare('UPDATE pools SET current_matchday = ? WHERE id = ?').run(snapshot.matchday, pool.id);
+      pool.current_matchday = snapshot.matchday;
+    }
     matches = getPoolMatches(pool.id);
   }
 
@@ -1088,9 +1009,23 @@ function ensurePoolMatches(pool) {
     matches = getPoolMatches(pool.id);
   }
 
-  const expectedMatches = getCompetition(competitionType).expectedMatches;
-  if (competitionType === 'liga_mx' && matches.length !== expectedMatches) {
-    repairPoolMatches(pool.id, competitionType);
+  if (competitionType === 'liga_mx') {
+    let currentMatchday = Number(pool.current_matchday);
+    if (!Number.isInteger(currentMatchday) || currentMatchday < 1) {
+      const matchdays = [...new Set(
+        matches
+          .map((match) => Number(match.matchday))
+          .filter((matchday) => Number.isInteger(matchday) && matchday > 0)
+      )];
+      if (matchdays.length === 1) {
+        currentMatchday = matchdays[0];
+        db.prepare('UPDATE pools SET current_matchday = ? WHERE id = ?').run(currentMatchday, pool.id);
+      }
+    }
+
+    if (Number.isInteger(currentMatchday) && currentMatchday > 0) {
+      lockPoolMatches(pool.id, ligaMxMatchesForMatchday(currentMatchday));
+    }
     matches = getPoolMatches(pool.id);
   }
 
@@ -1436,12 +1371,13 @@ app.post('/pools/create', auth, (req, res) => {
   if (!input) return res.redirect('/dashboard');
   const poolCode = code();
   const competitionType = input.competition_type || 'liga_mx';
-  const snapshotMatches = getUpcomingUniqueScheduledMatches(competitionType).matches;
+  const snapshot = getUpcomingUniqueScheduledMatches(competitionType);
 
   const tx = db.transaction(() => {
-    const info = db.prepare('INSERT INTO pools (name, code, owner_id, competition_type) VALUES (?, ?, ?, ?)').run(input.name, poolCode, req.session.user.id, competitionType);
+    const info = db.prepare('INSERT INTO pools (name, code, owner_id, competition_type, current_matchday) VALUES (?, ?, ?, ?, ?)')
+      .run(input.name, poolCode, req.session.user.id, competitionType, competitionType === 'liga_mx' ? snapshot.matchday : null);
     db.prepare('INSERT INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(info.lastInsertRowid, req.session.user.id);
-    lockPoolMatches(info.lastInsertRowid, snapshotMatches);
+    lockPoolMatches(info.lastInsertRowid, snapshot.matches);
   });
   tx();
   logEvent('pool.create', { poolName: input.name, poolCode, competitionType }, req, true);

@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS pools (
   owner_id INTEGER NOT NULL,
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   competition_type TEXT DEFAULT 'liga_mx',
+  current_matchday INTEGER,
   FOREIGN KEY(owner_id) REFERENCES users(id)
 );
 
@@ -201,6 +202,7 @@ if (stalePreviewMatches.length) {
 
 try { db.exec('ALTER TABLE users ADD COLUMN username TEXT'); } catch {}
 try { db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch {}
+try { db.exec('ALTER TABLE pools ADD COLUMN current_matchday INTEGER'); } catch {}
 try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)'); } catch {}
 
 // backfill usernames from email prefix for legacy users
