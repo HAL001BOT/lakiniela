@@ -1126,137 +1126,6 @@ function appendActiveWorldCupRoundToPools(poolName = null) {
   return { pools: pools.length, matchesAdded, normalizedPools };
 }
 
-function applyMundial2026PickCorrections() {
-  const pool = db.prepare("SELECT id, name FROM pools WHERE lower(name) = 'mundial 2026' LIMIT 1").get();
-  if (!pool) return { applied: 0, missing: ['pool:mundial 2026'] };
-
-  const findMatch = db.prepare(`
-    SELECT m.*
-    FROM pool_matches pm
-    JOIN matches m ON m.id = pm.match_id
-    WHERE pm.pool_id = ?
-      AND lower(m.home_team) = lower(?)
-      AND lower(m.away_team) = lower(?)
-    ORDER BY datetime(m.kickoff_at) DESC
-    LIMIT 1
-  `);
-
-  const matchCorrections = [
-    {
-      homeTeam: 'South Africa',
-      awayTeam: 'Canada',
-      picks: [
-        { aliases: ['pablo'], predHome: 1, predAway: 1 },
-        { aliases: ['admin'], predHome: 0, predAway: 2 },
-        { aliases: ['joaquin', 'joaquín'], predHome: 1, predAway: 2 },
-        { aliases: ['mudo'], predHome: 1, predAway: 2 },
-      ],
-    },
-    {
-      homeTeam: 'England',
-      awayTeam: 'Congo DR',
-      picks: [
-        { aliases: ['metaai', 'metaAI', 'meta ai'], predHome: 4, predAway: 0 },
-      ],
-    },
-  ];
-
-  const missing = [];
-  let applied = 0;
-  const findMember = db.prepare(`
-    SELECT u.id, u.name, u.username, u.email
-    FROM pool_members pm
-    JOIN users u ON u.id = pm.user_id
-    WHERE pm.pool_id = ?
-      AND (
-        lower(u.username) = lower(?)
-        OR lower(u.name) = lower(?)
-        OR lower(substr(u.email, 1, instr(u.email, '@') - 1)) = lower(?)
-      )
-    LIMIT 1
-  `);
-
-  const upsert = db.prepare(`
-    INSERT INTO predictions (pool_id, user_id, match_id, pred_home, pred_away)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(pool_id, user_id, match_id)
-    DO UPDATE SET pred_home = excluded.pred_home, pred_away = excluded.pred_away, updated_at = CURRENT_TIMESTAMP
-  `);
-
-  const recalcMatchIds = new Set();
-  for (const matchCorrection of matchCorrections) {
-    const match = findMatch.get(pool.id, matchCorrection.homeTeam, matchCorrection.awayTeam);
-    if (!match) {
-      missing.push(`match:${matchCorrection.homeTeam} vs ${matchCorrection.awayTeam}`);
-      continue;
-    }
-
-    for (const correction of matchCorrection.picks) {
-      const member = correction.aliases
-        .map((alias) => findMember.get(pool.id, alias, alias, alias))
-        .find(Boolean);
-
-      if (!member) {
-        missing.push(`user:${correction.aliases[0]}`);
-        continue;
-      }
-
-      upsert.run(pool.id, member.id, match.id, correction.predHome, correction.predAway);
-      applied += 1;
-    }
-
-    if (match.status === 'finished') recalcMatchIds.add(match.id);
-  }
-
-  for (const matchId of recalcMatchIds) recalcPointsForMatch(matchId);
-  return { applied, missing };
-}
-
-function removeMundial2026Members() {
-  const pool = db.prepare("SELECT id, name FROM pools WHERE lower(name) = 'mundial 2026' LIMIT 1").get();
-  if (!pool) return { removed: 0, missing: ['pool:mundial 2026'] };
-
-  const targets = [
-    { label: 'marco', aliases: ['marco'] },
-    { label: 'richard hdz', aliases: ['richard hdz', 'richard_hdz', 'richardhdz'] },
-  ];
-
-  const findMember = db.prepare(`
-    SELECT u.id, u.name, u.username, u.email
-    FROM pool_members pm
-    JOIN users u ON u.id = pm.user_id
-    WHERE pm.pool_id = ?
-      AND (
-        lower(u.username) = lower(?)
-        OR lower(u.name) = lower(?)
-        OR lower(substr(u.email, 1, instr(u.email, '@') - 1)) = lower(?)
-      )
-    LIMIT 1
-  `);
-
-  const missing = [];
-  let removed = 0;
-  const tx = db.transaction(() => {
-    for (const target of targets) {
-      const member = target.aliases
-        .map((alias) => findMember.get(pool.id, alias, alias, alias))
-        .find(Boolean);
-
-      if (!member) {
-        missing.push(`user:${target.label}`);
-        continue;
-      }
-
-      db.prepare('DELETE FROM predictions WHERE pool_id = ? AND user_id = ?').run(pool.id, member.id);
-      const info = db.prepare('DELETE FROM pool_members WHERE pool_id = ? AND user_id = ?').run(pool.id, member.id);
-      removed += Number(info.changes || 0);
-    }
-  });
-  tx();
-
-  return { removed, missing };
-}
-
 function shouldRunFrequentSyncNow() {
   const live = db.prepare(`
     SELECT COUNT(*) c
@@ -1831,10 +1700,8 @@ app.post('/admin/sync', async (req, res) => {
   try {
     const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
     const worldCupPools = appendActiveWorldCupRoundToPools();
-    const mundialCorrections = applyMundial2026PickCorrections();
-    const mundialRemovedMembers = removeMundial2026Members();
-    logEvent('admin.sync.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools, mundialCorrections, mundialRemovedMembers }, req, true);
-    return res.json({ ok: true, ligaMx, champions, worldCup, worldCupPools, mundialCorrections, mundialRemovedMembers });
+    logEvent('admin.sync.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools }, req, true);
+    return res.json({ ok: true, ligaMx, champions, worldCup, worldCupPools });
   } catch (e) {
     logEvent('admin.sync.failed', { error: e.message }, req, false);
     return res.status(500).json({ ok: false, error: e.message });
@@ -1846,9 +1713,7 @@ cron.schedule('* * * * *', async () => {
     if (!shouldRunFrequentSyncNow()) return;
     const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
     const worldCupPools = appendActiveWorldCupRoundToPools();
-    const mundialCorrections = applyMundial2026PickCorrections();
-    const mundialRemovedMembers = removeMundial2026Members();
-    logEvent('sync.auto.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools, mundialCorrections, mundialRemovedMembers }, null, true);
+    logEvent('sync.auto.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools }, null, true);
   } catch (e) {
     logEvent('sync.auto.failed', { error: e.message }, null, false);
   }
@@ -1864,9 +1729,7 @@ cron.schedule('*/15 * * * *', () => {
   try {
     const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
     const worldCupPools = appendActiveWorldCupRoundToPools();
-    const mundialCorrections = applyMundial2026PickCorrections();
-    const mundialRemovedMembers = removeMundial2026Members();
-    logEvent('sync.startup.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools, mundialCorrections, mundialRemovedMembers }, null, true);
+    logEvent('sync.startup.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools }, null, true);
   } catch (e) {
     logEvent('sync.startup.failed', { error: e.message }, null, false);
   }
