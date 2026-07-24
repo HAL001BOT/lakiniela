@@ -83,8 +83,12 @@ function main() {
   ], {
     nowMs: new Date('2026-08-07T12:00:00Z').getTime(),
   });
-  if (selectedWithIncompleteMetadata.matchday !== 5 || selectedWithIncompleteMetadata.matches.length !== 10) {
-    throw new Error('Explicit matchday metadata must win over date-based fallback');
+  if (
+    selectedWithIncompleteMetadata.matchday !== 5
+    || selectedWithIncompleteMetadata.matches.length !== 11
+    || !selectedWithIncompleteMetadata.matches.some((match) => match.inferred_matchday)
+  ) {
+    throw new Error('Missing matchday metadata must be attached to the closest explicit round');
   }
 
   const thursdayMatch = makeMatch(100, 6, '2026-08-13T20:00:00Z', 'Thursday Home', 'Thursday Away');
@@ -104,9 +108,16 @@ function main() {
     throw new Error('Schedule fallback must split rounds when a team repeats');
   }
 
-  const poolColumns = require('../db').prepare('PRAGMA table_info(pools)').all().map((column) => column.name);
+  const smokeDb = require('../db');
+  const poolColumns = smokeDb.prepare('PRAGMA table_info(pools)').all().map((column) => column.name);
   if (!poolColumns.includes('current_matchday')) {
     throw new Error('Pools must persist their current matchday');
+  }
+  if (smokeDb.pragma('foreign_keys', { simple: true }) !== 1) {
+    throw new Error('SQLite foreign key enforcement must be enabled');
+  }
+  if (!smokeDb.prepare("SELECT 1 FROM schema_migrations WHERE id = '001_legacy_columns'").get()) {
+    throw new Error('Database migrations must be versioned and recorded');
   }
 
   console.log('Smoke checks passed.');

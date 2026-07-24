@@ -156,7 +156,10 @@
 <script src='/app.js' defer></script>
 <script src='/vendor/html2canvas.min.js' defer></script>
 <script nonce="<%= cspNonce %>">
-const csrfToken = '<%= csrfToken %>';
+const csrfToken = <%- safeJson(csrfToken) %>;
+const snapshotPoolName = <%- safeJson(pool.name) %>;
+const snapshotPoolCode = <%- safeJson(pool.code) %>;
+const snapshotLogo = <%- safeJson(competitionLogo(pool.competition_type)) %>;
 document.querySelectorAll('.prediction .save').forEach(btn=>{btn.onclick=async()=>{const row=btn.closest('.prediction');const id=row.dataset.match;const ph=row.querySelector('.ph').value;const pa=row.querySelector('.pa').value;const r=await fetch(`/pools/<%= pool.id %>/predictions/${id}`,{method:'POST',headers:{'Content-Type':'application/json','x-csrf-token':csrfToken},body:JSON.stringify({pred_home:ph,pred_away:pa})});if(r.ok){btn.textContent='Saved';setTimeout(()=>btn.textContent='Save',900);}else{const j=await r.json().catch(()=>({}));alert(j.error||'Prediction is locked.');}}})
 
 const copyBtn = document.getElementById('copy-invite');
@@ -197,25 +200,36 @@ if (shareBtn && standingsList) {
         return { rank: i + 1, name, stats, points: pointsRaw };
       });
 
-      const shot = document.createElement('div');
+      const element = (tag, className, text) => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (text !== undefined) node.textContent = text;
+        return node;
+      };
+      const shot = element('div', 'standings-snapshot');
       shot.className = 'standings-snapshot';
-      shot.innerHTML = `
-        <div class="standings-snapshot-head">
-          <div>
-            <h2>Standings</h2>
-            <p><%= pool.name %> · Code <%= pool.code %></p>
-          </div>
-          <img src="<%= competitionLogo(pool.competition_type) %>" alt="pool" />
-        </div>
-        <ol>
-          ${rows.map((r, i) => `
-            <li class="${i === 0 ? 'is-top' : ''}">
-              <span class="left"><span class="rank">#${r.rank}</span><span class="snapshot-player"><strong>${r.name}</strong><small>${r.stats}</small></span></span>
-              <strong>${r.points}${i === 0 ? ' 👑' : ''}</strong>
-            </li>
-          `).join('')}
-        </ol>
-      `;
+      const head = element('div', 'standings-snapshot-head');
+      const heading = element('div');
+      heading.append(element('h2', '', 'Standings'));
+      heading.append(element('p', '', `${snapshotPoolName} · Code ${snapshotPoolCode}`));
+      const logo = element('img');
+      logo.src = snapshotLogo;
+      logo.alt = 'pool';
+      head.append(heading, logo);
+      shot.append(head);
+
+      const list = element('ol');
+      rows.forEach((row, index) => {
+        const item = element('li', index === 0 ? 'is-top' : '');
+        const left = element('span', 'left');
+        left.append(element('span', 'rank', `#${row.rank}`));
+        const player = element('span', 'snapshot-player');
+        player.append(element('strong', '', row.name), element('small', '', row.stats));
+        left.append(player);
+        item.append(left, element('strong', '', `${row.points}${index === 0 ? ' 👑' : ''}`));
+        list.append(item);
+      });
+      shot.append(list);
       document.body.appendChild(shot);
 
       const canvas = await window.html2canvas(shot, {
@@ -228,14 +242,14 @@ if (shareBtn && standingsList) {
       const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
       if (!blob) throw new Error('snapshot_failed');
 
-      const fileName = `lakiniela-standings-<%= pool.code %>.png`;
+      const fileName = `lakiniela-standings-${snapshotPoolCode}.png`;
       const file = new File([blob], fileName, { type: 'image/png' });
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
           files: [file],
-          title: `<%= pool.name %> standings`,
-          text: `<%= pool.name %> standings`,
+          title: `${snapshotPoolName} standings`,
+          text: `${snapshotPoolName} standings`,
         });
       } else {
         const url = URL.createObjectURL(blob);

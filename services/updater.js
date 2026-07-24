@@ -1,5 +1,6 @@
 const axios = require('axios');
 const db = require('../db');
+const { inferMissingMatchdays } = require('./matchday-selector');
 
 const COMPETITIONS = {
   LIGA_MX: {
@@ -184,7 +185,10 @@ async function fetchEspnCompetition(config) {
 
 async function syncCompetition(config) {
   const source = 'espn-public';
-  const fixtures = await fetchEspnCompetition(config);
+  const fetchedFixtures = await fetchEspnCompetition(config);
+  const fixtures = config.key === 'liga_mx'
+    ? inferMissingMatchdays(fetchedFixtures)
+    : fetchedFixtures;
 
   let created = 0;
   let updated = 0;

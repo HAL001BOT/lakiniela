@@ -99,6 +99,7 @@ app.use(express.json());
 app.use(express.static('public'));
 app.use((req, res, next) => {
   res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
+  res.locals.safeJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
   next();
 });
 app.use(
@@ -271,6 +272,17 @@ function consumePendingInvite(req, res) {
   db.prepare('INSERT OR IGNORE INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(pool.id, req.session.user.id);
   res.redirect(`/pools/${pool.id}`);
   return true;
+}
+
+function establishUserSession(req, user, done) {
+  const pendingInviteCode = req.session?.pendingInviteCode;
+  req.session.regenerate((error) => {
+    if (error) return done(error);
+    req.session.user = user;
+    req.session.csrfToken = crypto.randomBytes(24).toString('hex');
+    if (pendingInviteCode) req.session.pendingInviteCode = pendingInviteCode;
+    return done(null);
+  });
 }
 
 function formatCentral(iso) {
@@ -987,30 +999,18 @@ function ligaMxMatchesForMatchday(matchday) {
 }
 
 function ensurePoolMatches(pool) {
-  const competitionType = pool.competition_type || 'liga_mx';
-  let matches = getPoolMatches(pool.id);
+  return getPoolMatches(pool.id);
+}
 
-  if (!matches.length) {
-    // Backfill old pools created before match-locking feature.
-    const snapshot = getUpcomingUniqueScheduledMatches(competitionType);
-    lockPoolMatches(pool.id, snapshot.matches);
-    if (competitionType === 'liga_mx' && snapshot.matchday) {
-      db.prepare('UPDATE pools SET current_matchday = ? WHERE id = ?').run(snapshot.matchday, pool.id);
-      pool.current_matchday = snapshot.matchday;
-    }
-    matches = getPoolMatches(pool.id);
-  }
+function reconcileLigaMxPools() {
+  const pools = db.prepare("SELECT * FROM pools WHERE competition_type = 'liga_mx'").all();
+  let matchesAdded = 0;
+  let matchdaysSet = 0;
 
-  if (competitionType === 'world_cup_2026') {
-    // World Cup pools grow as each knockout round is decided. Keep prior picks
-    // and append the active resolved round.
-    const activeRoundMatches = getUpcomingUniqueScheduledMatches(competitionType).matches;
-    lockPoolMatches(pool.id, activeRoundMatches);
-    matches = getPoolMatches(pool.id);
-  }
-
-  if (competitionType === 'liga_mx') {
+  for (const pool of pools) {
+    const matches = getPoolMatches(pool.id);
     let currentMatchday = Number(pool.current_matchday);
+
     if (!Number.isInteger(currentMatchday) || currentMatchday < 1) {
       const matchdays = [...new Set(
         matches
@@ -1020,16 +1020,32 @@ function ensurePoolMatches(pool) {
       if (matchdays.length === 1) {
         currentMatchday = matchdays[0];
         db.prepare('UPDATE pools SET current_matchday = ? WHERE id = ?').run(currentMatchday, pool.id);
+        matchdaysSet += 1;
+      }
+    }
+
+    if (!matches.length) {
+      const snapshot = getUpcomingUniqueScheduledMatches('liga_mx');
+      const before = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
+      lockPoolMatches(pool.id, snapshot.matches);
+      const after = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
+      matchesAdded += Number(after) - Number(before);
+      if (snapshot.matchday) {
+        currentMatchday = snapshot.matchday;
+        db.prepare('UPDATE pools SET current_matchday = ? WHERE id = ?').run(currentMatchday, pool.id);
+        matchdaysSet += 1;
       }
     }
 
     if (Number.isInteger(currentMatchday) && currentMatchday > 0) {
+      const before = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
       lockPoolMatches(pool.id, ligaMxMatchesForMatchday(currentMatchday));
+      const after = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
+      matchesAdded += Number(after) - Number(before);
     }
-    matches = getPoolMatches(pool.id);
   }
 
-  return matches;
+  return { pools: pools.length, matchesAdded, matchdaysSet };
 }
 
 function appendActiveWorldCupRoundToPools(poolName = null) {
@@ -1101,10 +1117,13 @@ app.post('/register', (req, res) => {
     const hash = bcrypt.hashSync(input.password, 10);
     const info = db.prepare('INSERT INTO users (name, username, email, password_hash, role) VALUES (?, ?, ?, ?, ?)')
       .run(input.name, input.username, input.email.toLowerCase(), hash, 'user');
-    req.session.user = { id: info.lastInsertRowid, name: input.name, username: input.username, email: input.email.toLowerCase(), role: 'user' };
-    logEvent('auth.register.success', { username: input.username }, req, true);
-    if (consumePendingInvite(req, res)) return;
-    res.redirect('/dashboard');
+    const sessionUser = { id: info.lastInsertRowid, name: input.name, username: input.username, email: input.email.toLowerCase(), role: 'user' };
+    establishUserSession(req, sessionUser, (error) => {
+      if (error) return res.status(500).send('Could not create session.');
+      logEvent('auth.register.success', { username: input.username }, req, true);
+      if (consumePendingInvite(req, res)) return;
+      return res.redirect('/dashboard');
+    });
   } catch {
     logEvent('auth.register.failed', { username: input.username }, req, false);
     res.render('register', { error: 'Username or email already in use.' });
@@ -1120,10 +1139,13 @@ app.post('/login', loginLimiter, (req, res) => {
     logEvent('auth.login.failed', { username: input.username.toLowerCase() }, req, false);
     return res.render('login', { error: 'Invalid credentials.' });
   }
-  req.session.user = { id: user.id, name: user.name, username: user.username, email: user.email, role: user.role || 'user' };
-  logEvent('auth.login.success', { username: user.username }, req, true);
-  if (consumePendingInvite(req, res)) return;
-  res.redirect('/dashboard');
+  const sessionUser = { id: user.id, name: user.name, username: user.username, email: user.email, role: user.role || 'user' };
+  establishUserSession(req, sessionUser, (error) => {
+    if (error) return res.status(500).send('Could not create session.');
+    logEvent('auth.login.success', { username: user.username }, req, true);
+    if (consumePendingInvite(req, res)) return;
+    return res.redirect('/dashboard');
+  });
 });
 
 app.post('/logout', auth, (req, res) => req.session.destroy(() => res.redirect('/login')));
@@ -1628,47 +1650,84 @@ app.post('/admin/matches/:id/final', (req, res) => {
   res.json({ ok: true });
 });
 
+let syncInProgress = false;
+
+async function runFullSync(trigger = 'manual') {
+  if (syncInProgress) return { ok: false, skipped: true, reason: 'sync_in_progress' };
+  syncInProgress = true;
+  try {
+    const [ligaMx, champions, worldCup] = await Promise.all([
+      syncLigaMxScores(),
+      syncChampionsLeagueScores(),
+      syncWorldCupScores(),
+    ]);
+    const ligaMxPools = reconcileLigaMxPools();
+    const worldCupPools = appendActiveWorldCupRoundToPools();
+    return { ok: true, trigger, ligaMx, champions, worldCup, ligaMxPools, worldCupPools };
+  } finally {
+    syncInProgress = false;
+  }
+}
+
 app.post('/admin/sync', async (req, res) => {
   if (!isAllowedAdminSource(req) || !isAdminKeyValid(req.headers['x-admin-key'])) {
     logEvent('admin.sync.denied', {}, req, false);
     return res.status(401).json({ ok: false });
   }
   try {
-    const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
-    const worldCupPools = appendActiveWorldCupRoundToPools();
-    logEvent('admin.sync.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools }, req, true);
-    return res.json({ ok: true, ligaMx, champions, worldCup, worldCupPools });
+    const result = await runFullSync('admin');
+    if (result.skipped) return res.status(409).json(result);
+    logEvent('admin.sync.ok', {
+      ligaMxUpdated: result.ligaMx?.updated || 0,
+      championsUpdated: result.champions?.updated || 0,
+      worldCupUpdated: result.worldCup?.updated || 0,
+      ligaMxPools: result.ligaMxPools,
+      worldCupPools: result.worldCupPools,
+    }, req, true);
+    return res.json(result);
   } catch (e) {
     logEvent('admin.sync.failed', { error: e.message }, req, false);
     return res.status(500).json({ ok: false, error: e.message });
   }
 });
 
-cron.schedule('* * * * *', async () => {
+async function runLoggedSync(trigger) {
   try {
-    if (!shouldRunFrequentSyncNow()) return;
-    const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
-    const worldCupPools = appendActiveWorldCupRoundToPools();
-    logEvent('sync.auto.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools }, null, true);
-  } catch (e) {
-    logEvent('sync.auto.failed', { error: e.message }, null, false);
+    const result = await runFullSync(trigger);
+    if (result.skipped) return;
+    logEvent(`sync.${trigger}.ok`, {
+      ligaMxUpdated: result.ligaMx?.updated || 0,
+      championsUpdated: result.champions?.updated || 0,
+      worldCupUpdated: result.worldCup?.updated || 0,
+      ligaMxPools: result.ligaMxPools,
+      worldCupPools: result.worldCupPools,
+    }, null, true);
+  } catch (error) {
+    logEvent(`sync.${trigger}.failed`, { error: error.message }, null, false);
   }
-});
+}
 
-cron.schedule('*/15 * * * *', () => {
-  const now = Date.now();
-  db.prepare('DELETE FROM rate_limits WHERE reset_at < ?').run(now - 5 * 60 * 1000);
-  db.prepare('DELETE FROM sessions_store WHERE expires_at < ?').run(now);
-});
+function startBackgroundJobs() {
+  cron.schedule('* * * * *', async () => {
+    if (shouldRunFrequentSyncNow()) await runLoggedSync('live');
+  });
 
-(async () => {
-  try {
-    const [ligaMx, champions, worldCup] = await Promise.all([syncLigaMxScores(), syncChampionsLeagueScores(), syncWorldCupScores()]);
-    const worldCupPools = appendActiveWorldCupRoundToPools();
-    logEvent('sync.startup.ok', { ligaMxUpdated: ligaMx?.updated || 0, championsUpdated: champions?.updated || 0, worldCupUpdated: worldCup?.updated || 0, worldCupPools }, null, true);
-  } catch (e) {
-    logEvent('sync.startup.failed', { error: e.message }, null, false);
-  }
-})();
+  // Refresh schedules even when no match is live so postponements and newly
+  // published fixtures reach pools without requiring a restart.
+  cron.schedule('17 */6 * * *', () => runLoggedSync('scheduled'));
 
-app.listen(PORT, () => console.log(`LaKiniela running on http://localhost:${PORT}`));
+  cron.schedule('*/15 * * * *', () => {
+    const now = Date.now();
+    db.prepare('DELETE FROM rate_limits WHERE reset_at < ?').run(now - 5 * 60 * 1000);
+    db.prepare('DELETE FROM sessions_store WHERE expires_at < ?').run(now);
+  });
+
+  runLoggedSync('startup');
+}
+
+if (require.main === module) {
+  startBackgroundJobs();
+  app.listen(PORT, () => console.log(`LaKiniela running on http://localhost:${PORT}`));
+}
+
+module.exports = { app, runFullSync, reconcileLigaMxPools };

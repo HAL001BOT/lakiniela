@@ -27,8 +27,8 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Smoke checks
-        run: npm run smoke
+      - name: Test suite
+        run: npm test
 
   deploy-hook:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

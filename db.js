@@ -2,10 +2,11 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 
-const dbPath = path.join(__dirname, 'data', 'lakiniela.db');
+const dbPath = process.env.DB_PATH || path.join(__dirname, 'data', 'lakiniela.db');
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
+db.pragma('foreign_keys = ON');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -111,15 +112,42 @@ CREATE TABLE IF NOT EXISTS audit_events (
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  id TEXT PRIMARY KEY,
+  applied_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_at);
 `);
 
-try { db.exec('ALTER TABLE matches ADD COLUMN home_logo TEXT'); } catch {}
-try { db.exec('ALTER TABLE matches ADD COLUMN away_logo TEXT'); } catch {}
-try { db.exec('ALTER TABLE matches ADD COLUMN home_penalty_score INTEGER'); } catch {}
-try { db.exec('ALTER TABLE matches ADD COLUMN away_penalty_score INTEGER'); } catch {}
-try { db.exec('ALTER TABLE matches ADD COLUMN winner_side TEXT'); } catch {}
-try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_external_id ON matches(external_id) WHERE external_id IS NOT NULL'); } catch {}
+function hasColumn(table, column) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().some((row) => row.name === column);
+}
+
+function addColumn(table, definition) {
+  const column = definition.trim().split(/\s+/)[0];
+  if (!hasColumn(table, column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${definition}`);
+}
+
+function runMigration(id, migrate) {
+  if (db.prepare('SELECT 1 FROM schema_migrations WHERE id = ?').get(id)) return;
+  db.transaction(() => {
+    migrate();
+    db.prepare('INSERT INTO schema_migrations (id) VALUES (?)').run(id);
+  })();
+}
+
+runMigration('001_legacy_columns', () => {
+  addColumn('matches', 'home_logo TEXT');
+  addColumn('matches', 'away_logo TEXT');
+  addColumn('matches', 'home_penalty_score INTEGER');
+  addColumn('matches', 'away_penalty_score INTEGER');
+  addColumn('matches', 'winner_side TEXT');
+  addColumn('users', 'username TEXT');
+  addColumn('users', "role TEXT DEFAULT 'user'");
+  addColumn('pools', "competition_type TEXT DEFAULT 'liga_mx'");
+  addColumn('pools', 'current_matchday INTEGER');
+});
 
 const duplicateExternalMatches = db.prepare(`
   SELECT external_id, MIN(id) AS keep_id
@@ -173,11 +201,15 @@ for (const row of duplicateFixtureRows) {
   }
 }
 
-try { db.exec(`
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_external_id
+  ON matches(external_id)
+  WHERE external_id IS NOT NULL;
+
   CREATE UNIQUE INDEX IF NOT EXISTS idx_matches_ligamx_fixture
   ON matches(league, home_team, away_team, kickoff_at)
-  WHERE league = 'Liga MX'
-`); } catch {}
+  WHERE league = 'Liga MX';
+`);
 
 const stalePreviewMatches = db.prepare(`
   SELECT m.id
@@ -200,10 +232,7 @@ if (stalePreviewMatches.length) {
   removePreviewMatches(stalePreviewMatches);
 }
 
-try { db.exec('ALTER TABLE users ADD COLUMN username TEXT'); } catch {}
-try { db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'"); } catch {}
-try { db.exec('ALTER TABLE pools ADD COLUMN current_matchday INTEGER'); } catch {}
-try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)'); } catch {}
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)');
 
 // backfill usernames from email prefix for legacy users
 const legacyUsers = db.prepare("SELECT id, email FROM users WHERE username IS NULL OR TRIM(username) = ''").all();
@@ -241,5 +270,3 @@ if (!countMatches) {
 }
 
 module.exports = db;
-
-try { db.exec("ALTER TABLE pools ADD COLUMN competition_type TEXT DEFAULT 'liga_mx'"); } catch {}

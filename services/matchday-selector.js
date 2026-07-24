@@ -6,6 +6,10 @@ function normalizedTeam(name) {
   return String(name || '').trim().toLowerCase();
 }
 
+function matchKey(match) {
+  return match?.id ?? match?.externalId;
+}
+
 function orderedMatches(matches) {
   return [...(matches || [])]
     .filter((match) => Number.isFinite(kickoffMs(match)))
@@ -46,6 +50,56 @@ function roundsFromMatchday(matches) {
     .map(([matchday, roundMatches]) => ({ matchday, matches: roundMatches, source: 'matchday' }));
 }
 
+function attachUnassignedMatches(rounds, matches) {
+  const assignedIds = new Set(rounds.flatMap((round) => round.matches.map(matchKey)));
+  const maxDistanceMs = 6 * 24 * 60 * 60 * 1000;
+
+  for (const match of orderedMatches(matches).filter((candidate) => !assignedIds.has(matchKey(candidate)))) {
+    const home = normalizedTeam(match.home_team);
+    const away = normalizedTeam(match.away_team);
+    const time = kickoffMs(match);
+    const candidates = rounds
+      .map((round) => {
+        const times = round.matches.map(kickoffMs).filter(Number.isFinite);
+        const first = Math.min(...times);
+        const last = Math.max(...times);
+        const distance = time < first ? first - time : time > last ? time - last : 0;
+        const teams = new Set(round.matches.flatMap((item) => [
+          normalizedTeam(item.home_team),
+          normalizedTeam(item.away_team),
+        ]));
+        return { round, distance, repeatsTeam: teams.has(home) || teams.has(away) };
+      })
+      .filter((candidate) => !candidate.repeatsTeam && candidate.distance <= maxDistanceMs)
+      .sort((a, b) => a.distance - b.distance);
+
+    if (candidates[0]) {
+      candidates[0].round.matches.push({
+        ...match,
+        matchday: candidates[0].round.matchday,
+        inferred_matchday: true,
+      });
+    }
+  }
+
+  for (const round of rounds) round.matches = orderedMatches(round.matches);
+  return rounds;
+}
+
+function inferMissingMatchdays(matches) {
+  const rounds = attachUnassignedMatches(roundsFromMatchday(matches), matches);
+  const inferredById = new Map(
+    rounds
+      .flatMap((round) => round.matches)
+      .filter((match) => match.inferred_matchday)
+      .map((match) => [matchKey(match), match.matchday])
+  );
+  return (matches || []).map((match) => {
+    const inferred = inferredById.get(matchKey(match));
+    return inferred ? { ...match, matchday: inferred, inferredMatchday: true } : match;
+  });
+}
+
 function roundsFromSchedule(matches) {
   const rounds = [];
   let current = [];
@@ -81,7 +135,7 @@ function selectActiveMatchday(matches, { nowMs = Date.now() } = {}) {
   const ordered = orderedMatches(matches);
   if (!ordered.length) return { matches: [], matchday: null, source: 'none' };
 
-  const explicitRounds = roundsFromMatchday(ordered);
+  const explicitRounds = attachUnassignedMatches(roundsFromMatchday(ordered), ordered);
   const rounds = explicitRounds.length
     ? explicitRounds
     : roundsFromSchedule(ordered);
@@ -92,5 +146,7 @@ function selectActiveMatchday(matches, { nowMs = Date.now() } = {}) {
 module.exports = {
   roundsFromMatchday,
   roundsFromSchedule,
+  attachUnassignedMatches,
+  inferMissingMatchdays,
   selectActiveMatchday,
 };
