@@ -448,6 +448,85 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .pick-empty{background:#0a1437;border-color:#2a438f;color:var(--muted)}
 .pick-hidden{background:#0a1437;border-color:#2a438f;color:var(--muted);font-size:.72rem}
 
+.button-secondary{
+  background:#101b42;
+  border:1px solid #3653a8;
+  box-shadow:none;
+  color:#dfe8ff;
+}
+.eyebrow{margin:0 0 5px;color:#7ddcff;font-size:.72rem;font-weight:850;letter-spacing:.13em}
+.dashboard-grid{gap:18px;padding-bottom:96px}
+.dashboard-hero{padding:10px 2px 0}
+.dashboard-hero > h1{font-size:clamp(1.8rem,5vw,2.7rem);margin-bottom:16px}
+.next-action-card{
+  display:flex;align-items:center;justify-content:space-between;gap:20px;
+  padding:22px;border:1px solid rgba(76,201,255,.55);border-radius:20px;
+  background:radial-gradient(circle at 90% 0%,rgba(138,61,255,.3),transparent 44%),linear-gradient(135deg,#142862,#0d173a);
+  box-shadow:0 18px 40px rgba(0,0,0,.32);
+}
+.next-action-card h2{font-size:clamp(1.45rem,4vw,2.2rem);margin:.25rem 0}
+.next-action-card p{margin:0;color:#bdccef}
+.next-action-complete{border-color:rgba(47,226,168,.5)}
+.action-kicker{font-size:.74rem;font-weight:850;color:#7ddcff;letter-spacing:.08em;text-transform:uppercase}
+.action-button{min-height:50px;padding-inline:18px;white-space:nowrap}
+.action-check{display:grid;place-items:center;width:54px;height:54px;border-radius:50%;background:rgba(47,226,168,.18);color:var(--ok);font-size:2rem;font-weight:900}
+.quick-actions details > summary,.competition-tabs details > summary{cursor:pointer;font-weight:800;list-style:none}
+.quick-actions details > summary::-webkit-details-marker,.competition-tabs details > summary::-webkit-details-marker{display:none}
+.quick-actions details > summary::after{content:'＋';float:right;color:var(--accent)}
+.quick-actions details[open] > summary::after{content:'−'}
+.quick-action-forms{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:16px;padding-top:16px;border-top:1px solid #274080}
+.action-form{display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end}
+.action-form label{display:grid;gap:5px;color:var(--muted);font-size:.78rem;font-weight:700}
+.join-form{grid-template-columns:1fr auto}
+.section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:13px}
+.section-heading h2,.section-heading h3{margin:0}
+.section-count,.completion-pill,.round-progress{padding:5px 10px;border-radius:999px;background:#0a1437;border:1px solid #3653a8;color:#cbd8fb;font-size:.76rem;font-weight:800}
+.pool-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
+.pool-summary-card{display:grid;gap:14px;padding:15px;border:1px solid #2a438f;border-radius:15px;background:#0b1537;color:var(--txt);transition:transform .15s ease,border-color .15s ease}
+.pool-summary-card:hover{transform:translateY(-2px);border-color:#5e7be0}
+.pool-summary-head{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px}
+.pool-summary-head div{display:grid;gap:2px;min-width:0}
+.pool-summary-head strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pool-summary-head small{color:var(--muted)}
+.pool-chevron{font-size:1.8rem;color:var(--muted)}
+.pool-summary-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pool-summary-stats span{display:grid;gap:3px;padding:8px;border-radius:10px;background:#101d45}
+.pool-summary-stats small{color:var(--muted);font-size:.68rem}
+.pool-summary-stats strong{font-size:1.05rem}
+.pool-summary-stats .attention{color:#ffe58a}
+.competition-tabs{display:grid;gap:10px}
+.competition-tabs details{border:1px solid #274080;border-radius:12px;padding:12px;background:#0b1537}
+.competition-tabs summary{display:flex;align-items:center;justify-content:space-between}
+.competition-tabs summary span{display:grid;place-items:center;min-width:26px;height:26px;border-radius:999px;background:#17275c;color:var(--muted);font-size:.72rem}
+.competition-tabs details[open] summary{margin-bottom:10px}
+.mobile-nav{display:none}
+
+.matchday-leaderboard{margin-top:18px;padding-top:16px;border-top:1px solid #274080}
+.weekly-winner{margin-bottom:10px;padding:10px 12px;border:1px solid rgba(255,215,0,.42);border-radius:11px;background:rgba(255,215,0,.1);color:#ffe58a}
+.round-standings{display:grid;gap:7px;margin:0;padding:0;list-style:none}
+.round-standings li{display:grid;grid-template-columns:38px 1fr 42px auto;align-items:center;gap:8px;padding:9px 10px;border-radius:10px;background:#0a1437}
+.round-rank{color:var(--muted);font-weight:800}
+.round-player{display:grid;min-width:0}
+.round-player strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.round-player small{color:var(--muted);font-size:.7rem}
+.rank-movement{text-align:center;color:var(--muted);font-size:.76rem;font-weight:850}
+.rank-up{color:var(--ok)}
+.rank-down{color:#ff7aa8}
+.prediction-section-head{align-items:flex-end}
+.score-control{display:grid;grid-template-columns:38px 58px 38px;align-items:center}
+.score-control .score-step{width:38px;height:42px;padding:0;border-radius:10px;background:#17275c;box-shadow:none;font-size:1.2rem}
+.score-control input[type='number']{width:58px;max-width:58px;height:48px;border-radius:10px;text-align:center;font-size:1.2rem;font-weight:850}
+.score-control input::-webkit-outer-spin-button,.score-control input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.prediction-status:empty{display:none}
+.save-all-bar{
+  position:sticky;bottom:14px;z-index:8;display:flex;align-items:center;justify-content:space-between;gap:14px;
+  margin-top:16px;padding:13px 14px;border:1px solid #5272d8;border-radius:15px;
+  background:rgba(10,20,55,.94);box-shadow:0 16px 34px rgba(0,0,0,.5);backdrop-filter:blur(12px)
+}
+.save-all-bar > div{display:grid;gap:2px}
+.save-all-bar small{color:var(--muted)}
+.save-all-bar button{min-height:48px;min-width:150px}
+
 .auth-card form,
 .auth-card form input,
 .auth-card form button{display:block;width:100%}
@@ -478,6 +557,12 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .knockout-circle-large{--node:5.4%;--slot:3.4%;--winner-slot:5.6%;width:min(96vw,96svh)}
   .knockout-center-large{width:96px;height:124px}
   .knockout-flag{font-size:1.95rem}
+  .quick-action-forms{grid-template-columns:1fr}
+  .action-form,.join-form{grid-template-columns:1fr}
+  .next-action-card{align-items:stretch;flex-direction:column}
+  .action-button{width:100%}
+  .desktop-actions{flex-direction:row}
+  .desktop-actions .button-link,.desktop-actions button{width:auto}
 }
 
 @media (max-width:700px){
@@ -507,4 +592,33 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .knockout-center-large{width:78px;height:102px}
   .knockout-flag{font-size:1.55rem}
   .knockout-team em{right:-7px;bottom:-7px;min-width:17px;height:17px;font-size:.62rem}
+  .has-mobile-nav{padding-bottom:76px}
+  .dashboard-top{display:flex}
+  .dashboard-top .brand{display:flex}
+  .dashboard-top .desktop-actions{display:none}
+  .dashboard-grid{padding:12px 12px 28px}
+  .dashboard-hero{padding-top:4px}
+  .next-action-card{padding:18px}
+  .next-action-card h2{font-size:1.5rem}
+  .card{border-radius:15px;padding:14px}
+  .pool-grid{grid-template-columns:1fr}
+  .mobile-nav{
+    position:fixed;left:0;right:0;bottom:0;z-index:30;
+    display:grid;grid-template-columns:repeat(3,1fr);
+    padding:7px max(8px,env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));
+    border-top:1px solid #31478f;background:rgba(7,14,38,.96);backdrop-filter:blur(15px)
+  }
+  .mobile-nav a{display:grid;place-items:center;gap:2px;min-height:49px;color:var(--muted);font-size:.68rem;font-weight:750}
+  .mobile-nav a span{font-size:1.1rem}
+  .mobile-nav a.is-active{color:var(--accent)}
+  .prediction-section-head{align-items:flex-start}
+  .score-inputs{gap:4px}
+  .score-input-wrap,.score-input-wrap-right{flex-direction:column}
+  .score-box-logo{width:46px;height:46px;flex-basis:46px}
+  .score-control{grid-template-columns:36px 52px 36px}
+  .score-control .score-step{width:36px;height:44px}
+  .score-control input[type='number']{width:52px;max-width:52px;height:48px}
+  .save-all-bar{bottom:76px;margin-inline:-4px}
+  .save-all-bar button{min-width:126px}
+  .round-standings li{grid-template-columns:32px 1fr 36px auto}
 }

@@ -1,49 +1,127 @@
-<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>Dashboard · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260305mainpoints1'/></head><body>
-<header class='top'><div class='brand'><img class='brand-logo' src='/img/logo.png' alt='lakiniela logo'/></div><div class='inline'><a href='/account/password'><button type='button'>Password</button></a><% if (isAdmin) { %><a href='/admin/users'><button type='button'>Admin</button></a><% } %><form method='post' action='/logout'><input type='hidden' name='_csrf' value='<%= csrfToken %>'/><button>Logout</button></form></div></header>
-<main class='grid'>
-<section class='card'><h2>Welcome, <%= user.name %></h2>
-<div class='row'>
-<form method='post' action='/pools/create' class='inline'><input type='hidden' name='_csrf' value='<%= csrfToken %>'/><input name='name' placeholder='New pool name'/><select name='competition_type'><option value='liga_mx'>Liga MX</option><option value='champions_league'>Champions League</option><option value='world_cup_2026'>FIFA World Cup 2026</option></select><button>Create pool</button></form>
-<form method='post' action='/pools/join' class='inline'><input type='hidden' name='_csrf' value='<%= csrfToken %>'/><input name='code' placeholder='Join code (e.g. A1B2C3)'/><button>Join</button></form>
-</div></section>
-<section class='card'><h3>Total Points Dashboard</h3>
-<div class='points-dashboard'>
-<% pointsDashboard.forEach((u, i) => { %>
-  <div class='points-user-card <%= i === 0 ? "points-user-card-top" : "" %>'>
-    <div class='points-user-name'><%= u.name %></div>
-    <div class='points-user-total'><%= u.points %> pts<% if (i === 0) { %> 👑<% } %></div>
+<!doctype html>
+<html lang='es'>
+<head>
+  <meta charset='utf-8'/>
+  <meta name='viewport' content='width=device-width,initial-scale=1'/>
+  <title>Inicio · LaKiniela</title>
+  <link rel='icon' href='/img/logo.png'/>
+  <link rel='stylesheet' href='/style.css?v=20260725matchday1'/>
+</head>
+<body class='has-mobile-nav'>
+<header class='top dashboard-top'>
+  <div class='brand'><img class='brand-logo' src='/img/logo.png' alt='LaKiniela'/></div>
+  <div class='inline desktop-actions'>
+    <a class='button-link button-secondary' href='/account/password'>Perfil</a>
+    <% if (isAdmin) { %><a class='button-link button-secondary' href='/admin/users'>Admin</a><% } %>
+    <form method='post' action='/logout'><input type='hidden' name='_csrf' value='<%= csrfToken %>'/><button class='button-secondary'>Salir</button></form>
   </div>
-<% }) %>
-</div>
-<% if (!pointsDashboard.length) { %><p class='muted'>No points yet.</p><% } %>
-</section>
-<section class='card'><h3>Your Pools</h3>
-<div class='list'>
-<% pools.forEach(p=> { %>
-<a class='pool-item' href='/pools/<%= p.id %>'>
-  <div class='pool-item-head'><img class='pool-item-logo' src='<%= competitionLogo(p.competition_type) %>' alt='pool logo'/><strong><%= p.name %></strong></div>
-  <div class='pool-meta-row'>
-    <span>Code: <%= p.code %> · <%= p.members %> members · <%= competitionLabel(p.competition_type) %></span>
-    <% if (p.pool_finished && p.winner_name) { %>
-      <strong class='pool-winner'><%= p.winner_name %> 👑</strong>
+</header>
+
+<main class='grid dashboard-grid' id='inicio'>
+  <section class='dashboard-hero'>
+    <p class='eyebrow'>TU JORNADA</p>
+    <h1>Hola, <%= user.name %></h1>
+    <% const actionPool = pools.find(p => p.incomplete_count > 0); %>
+    <% if (actionPool) { %>
+      <div class='next-action-card'>
+        <div>
+          <span class='action-kicker'><%= competitionLabel(actionPool.competition_type) %> · <%= actionPool.active_round_label || 'Próxima jornada' %></span>
+          <h2><%= actionPool.incomplete_count %> pronóstico<%= actionPool.incomplete_count === 1 ? '' : 's' %> pendiente<%= actionPool.incomplete_count === 1 ? '' : 's' %></h2>
+          <p>Se cierran <%= actionPool.next_lock_local %> · <strong><%= actionPool.name %></strong></p>
+        </div>
+        <a class='button-link action-button' href='/pools/<%= actionPool.id %>#predicciones'>Completar pronósticos</a>
+      </div>
+    <% } else if (pools.length) { %>
+      <div class='next-action-card next-action-complete'>
+        <div>
+          <span class='action-kicker'>TODO LISTO</span>
+          <h2>Tus pronósticos están al día</h2>
+          <p>Regresa cuando se abra la próxima jornada.</p>
+        </div>
+        <span class='action-check' aria-hidden='true'>✓</span>
+      </div>
+    <% } else { %>
+      <div class='next-action-card'>
+        <div>
+          <span class='action-kicker'>EMPIEZA A JUGAR</span>
+          <h2>Crea o únete a tu primera quiniela</h2>
+          <p>Invita amigos, pronostica marcadores y compite cada jornada.</p>
+        </div>
+      </div>
     <% } %>
-  </div>
-</a>
-<% }) %>
-<% if (!pools.length) { %><p class='muted'>No pools yet. Create one or join with a code.</p><% } %>
-</div></section>
-<section class='card'><h3>Liga MX<% if (jornadaNumber) { %> · Jornada <%= jornadaNumber %><% } else { %> · Próximos partidos<% } %></h3>
-<% nextMatches.forEach(m=> { %><div class='match-line'><div class='teams-col'><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.home_logo || "" %>' alt=''/><span><%= m.home_team %></span></div><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.away_logo || "" %>' alt=''/><span><%= m.away_team %></span></div></div><small><%= m.status %> · <%= m.kickoff_local || m.kickoff_at %><% if ((m.status==='live' || m.status==='finished') && m.home_score !== null && m.away_score !== null) { %> · <%= m.home_score %>-<%= m.away_score %><% if (m.home_penalty_score !== null && m.away_penalty_score !== null) { %> (Pens <%= m.home_penalty_score %>-<%= m.away_penalty_score %>)<% } %><% } %></small></div><% }) %>
-<% if (!nextMatches.length) { %><p class='muted'>No scheduled matches available yet. Try sync again in a bit.</p><% } %>
-</section>
+  </section>
 
-<section class='card'><h3>Champions League · Next Round <%= championsRoundNumber || 1 %></h3>
-<% championsMatches.forEach(m=> { %><div class='match-line'><div class='teams-col'><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.home_logo || "" %>' alt=''/><span><%= m.home_team %></span></div><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.away_logo || "" %>' alt=''/><span><%= m.away_team %></span></div></div><small><%= m.status %> · <%= m.kickoff_local || m.kickoff_at %><% if ((m.status==='live' || m.status==='finished') && m.home_score !== null && m.away_score !== null) { %> · <%= m.home_score %>-<%= m.away_score %><% if (m.home_penalty_score !== null && m.away_penalty_score !== null) { %> (Pens <%= m.home_penalty_score %>-<%= m.away_penalty_score %>)<% } %><% } %></small></div><% }) %>
-<% if (!championsMatches.length) { %><p class='muted'>No Champions League matches available yet. Sync will populate when ESPN posts them.</p><% } %>
-</section>
+  <section class='card quick-actions'>
+    <details <%= pools.length ? '' : 'open' %>>
+      <summary>Crear o unirme a una quiniela</summary>
+      <div class='quick-action-forms'>
+        <form method='post' action='/pools/create' class='action-form'>
+          <input type='hidden' name='_csrf' value='<%= csrfToken %>'/>
+          <label>Nombre<input name='name' placeholder='Los Invencibles' required/></label>
+          <label>Competencia<select name='competition_type'><option value='liga_mx'>Liga MX</option><option value='champions_league'>Champions League</option><option value='world_cup_2026'>Mundial 2026</option></select></label>
+          <button>Crear quiniela</button>
+        </form>
+        <form method='post' action='/pools/join' class='action-form join-form'>
+          <input type='hidden' name='_csrf' value='<%= csrfToken %>'/>
+          <label>Código de invitación<input name='code' placeholder='A1B2C3' required/></label>
+          <button>Unirme</button>
+        </form>
+      </div>
+    </details>
+  </section>
 
-<section class='card'><h3>FIFA World Cup 2026 · First Stage · <%= worldCupMatchCount || 72 %> Matches</h3>
-<% worldCupMatches.forEach(m=> { %><div class='match-line'><div class='teams-col'><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.home_logo || "" %>' alt=''/><span><%= m.home_team %></span></div><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.away_logo || "" %>' alt=''/><span><%= m.away_team %></span></div></div><small><%= m.status %> · <%= m.kickoff_local || m.kickoff_at %><% if ((m.status==='live' || m.status==='finished') && m.home_score !== null && m.away_score !== null) { %> · <%= m.home_score %>-<%= m.away_score %><% if (m.home_penalty_score !== null && m.away_penalty_score !== null) { %> (Pens <%= m.home_penalty_score %>-<%= m.away_penalty_score %>)<% } %><% } %></small></div><% }) %>
-<% if (!worldCupMatches.length) { %><p class='muted'>No World Cup matches available yet. Sync will populate when ESPN posts them.</p><% } %>
-</section>
-</main><script src='/app.js' defer></script></body></html>
+  <section class='card' id='quinielas'>
+    <div class='section-heading'>
+      <div><p class='eyebrow'>MIS COMPETENCIAS</p><h2>Mis quinielas</h2></div>
+      <span class='section-count'><%= pools.length %></span>
+    </div>
+    <div class='pool-grid'>
+      <% pools.forEach(p => { %>
+        <a class='pool-summary-card' href='/pools/<%= p.id %>'>
+          <div class='pool-summary-head'>
+            <img class='pool-item-logo' src='<%= competitionLogo(p.competition_type) %>' alt=''/>
+            <div><strong><%= p.name %></strong><small><%= competitionLabel(p.competition_type) %> · <%= p.active_round_label || 'Temporada' %></small></div>
+            <span class='pool-chevron'>›</span>
+          </div>
+          <div class='pool-summary-stats'>
+            <span><small>Posición</small><strong><%= p.my_rank ? `#${p.my_rank}` : '—' %></strong></span>
+            <span><small>Puntos</small><strong><%= p.my_points %></strong></span>
+            <span><small>Pendientes</small><strong class='<%= p.incomplete_count ? "attention" : "" %>'><%= p.incomplete_count %></strong></span>
+          </div>
+          <% if (p.pool_finished && p.winner_name) { %><span class='pool-winner'>Ganador: <%= p.winner_name %> 👑</span><% } %>
+        </a>
+      <% }) %>
+      <% if (!pools.length) { %><p class='muted'>Todavía no tienes quinielas.</p><% } %>
+    </div>
+  </section>
+
+  <section class='card schedule-card'>
+    <div class='section-heading'><div><p class='eyebrow'>PRÓXIMOS PARTIDOS</p><h2>Calendario</h2></div></div>
+    <div class='competition-tabs'>
+      <details open>
+        <summary>Liga MX<% if (jornadaNumber) { %> · Jornada <%= jornadaNumber %><% } %> <span><%= nextMatches.length %></span></summary>
+        <% nextMatches.forEach(m => { %><div class='match-line'><div class='teams-col'><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.home_logo || "" %>' alt=''/><span><%= m.home_team %></span></div><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.away_logo || "" %>' alt=''/><span><%= m.away_team %></span></div></div><small><%= m.kickoff_local || m.kickoff_at %><% if ((m.status==='live' || m.status==='finished') && m.home_score !== null) { %> · <%= m.home_score %>-<%= m.away_score %><% } %></small></div><% }) %>
+        <% if (!nextMatches.length) { %><p class='muted'>Sin partidos programados.</p><% } %>
+      </details>
+      <details>
+        <summary>Champions League <span><%= championsMatches.length %></span></summary>
+        <% championsMatches.forEach(m => { %><div class='match-line'><div class='teams-col'><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.home_logo || "" %>' alt=''/><span><%= m.home_team %></span></div><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.away_logo || "" %>' alt=''/><span><%= m.away_team %></span></div></div><small><%= m.kickoff_local || m.kickoff_at %></small></div><% }) %>
+        <% if (!championsMatches.length) { %><p class='muted'>Sin partidos programados.</p><% } %>
+      </details>
+      <details>
+        <summary>Mundial 2026 <span><%= worldCupMatches.length %></span></summary>
+        <% worldCupMatches.forEach(m => { %><div class='match-line'><div class='teams-col'><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.home_logo || "" %>' alt=''/><span><%= m.home_team %></span></div><div class='team-row'><img class='team-logo hide-on-error' src='<%= m.away_logo || "" %>' alt=''/><span><%= m.away_team %></span></div></div><small><%= m.kickoff_local || m.kickoff_at %></small></div><% }) %>
+        <% if (!worldCupMatches.length) { %><p class='muted'>Sin partidos programados.</p><% } %>
+      </details>
+    </div>
+  </section>
+</main>
+
+<nav class='mobile-nav' aria-label='Navegación principal'>
+  <a class='is-active' href='#inicio'><span>⌂</span>Inicio</a>
+  <a href='#quinielas'><span>⚽</span>Quinielas</a>
+  <a href='/account/password'><span>●</span>Perfil</a>
+</nav>
+<script src='/app.js' defer></script>
+</body>
+</html>

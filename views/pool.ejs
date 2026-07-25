@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · lakiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260316share2'/></head><body>
+<!doctype html><html lang='es'><head><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · LaKiniela</title><link rel='icon' href='/img/logo.png'/><link rel='stylesheet' href='/style.css?v=20260725matchday1'/></head><body class='has-mobile-nav'>
 <header class='top'><a href='/dashboard'>← Dashboard</a><div class='brand'><img class='brand-logo' src='<%= competitionLogo(pool.competition_type) %>' alt='pool logo'/><h1><%= pool.name %></h1></div><span class='badge'>Code: <%= pool.code %></span></header>
 <main class='grid two'>
 <section class='card' id='standings-card'>
@@ -36,6 +36,32 @@
 </li>
 <% }) %>
 </ol>
+<% if (matchdayStandings) { %>
+<div class='matchday-leaderboard'>
+  <div class='section-heading'>
+    <div>
+      <p class='eyebrow'>CLASIFICACIÓN DE JORNADA</p>
+      <h3><%= matchdayStandings.label %></h3>
+    </div>
+    <span class='round-progress'><%= matchdayStandings.finishedMatches %>/<%= matchdayStandings.totalMatches %> finales</span>
+  </div>
+  <% if (matchdayStandings.complete && matchdayStandings.winnerNames.length) { %>
+    <div class='weekly-winner'>🏆 Ganador<%= matchdayStandings.winnerNames.length > 1 ? 'es' : '' %>: <strong><%= matchdayStandings.winnerNames.join(', ') %></strong></div>
+  <% } %>
+  <ol class='round-standings'>
+    <% matchdayStandings.rows.forEach((s, index) => { %>
+      <li>
+        <span class='round-rank'>#<%= index + 1 %></span>
+        <span class='round-player'><strong><%= s.name %></strong><small>General #<%= s.overall_rank %></small></span>
+        <span class='rank-movement <%= s.rank_change > 0 ? "rank-up" : s.rank_change < 0 ? "rank-down" : "" %>'>
+          <%= s.rank_change > 0 ? `↑${s.rank_change}` : s.rank_change < 0 ? `↓${Math.abs(s.rank_change)}` : '—' %>
+        </span>
+        <strong><%= s.matchday_points %> pts</strong>
+      </li>
+    <% }) %>
+  </ol>
+</div>
+<% } %>
 <% const progressionCharts = [
   {
     title: 'Points Progression',
@@ -99,15 +125,20 @@
 </div>
 <% }) %>
 </section>
-<section class='card'><h3>Predictions · <%= pool.competition_type === 'world_cup_2026' ? 'World Cup Tournament' : 'Current / Next Matchday' %></h3><p class='muted'>3 pts = right result. 5 pts = exact score.</p>
+<section class='card predictions-card' id='predicciones'>
+<div class='section-heading prediction-section-head'>
+  <div><p class='eyebrow'>TUS MARCADORES</p><h2>Pronósticos</h2></div>
+  <% if (matches.length) { %><span class='completion-pill' id='completion-count'>0/<%= matches.length %> completos</span><% } %>
+</div>
+<p class='muted'>3 pts por resultado correcto · 5 pts por marcador exacto. Se cierran 15 minutos antes.</p>
 <div class='invite-row'>
   <input class='invite-link' id='invite-link' readonly value='<%= inviteLink %>' />
   <button type='button' id='copy-invite'>Copy invite</button>
 </div>
-<div class='list'>
+<div class='list prediction-list' id='prediction-list'>
 <% if (matches.length) { %>
 <% matches.forEach(m => { const p = predByMatch.get(m.id); const lockMs = new Date(m.kickoff_at).getTime() - (15 * 60 * 1000); const locked = m.status==='finished' || nowMs >= lockMs; %>
-<div class='prediction' data-match='<%= m.id %>'>
+<div class='prediction <%= locked ? "is-locked" : "" %>' data-match='<%= m.id %>'>
 <div class='prediction-head'>
   <% if ((m.status==='live' || m.status==='finished') && m.home_score !== null && m.away_score !== null) { %>
     <div class='fixture-line'>
@@ -126,7 +157,7 @@
   <div class='score-col'>
     <div class='score-input-wrap'>
       <img class='team-logo score-box-logo hide-on-error' src='<%= m.home_logo || "" %>' alt=''/>
-      <input type='number' min='0' class='ph' value='<%= p ? p.pred_home : "" %>' <%= locked ? 'disabled' : '' %> />
+      <div class='score-control'><button type='button' class='score-step' data-delta='-1' aria-label='Restar gol a <%= m.home_team %>' <%= locked ? 'disabled' : '' %>>−</button><input type='number' min='0' max='30' inputmode='numeric' class='ph' value='<%= p ? p.pred_home : "" %>' <%= locked ? 'disabled' : '' %> /><button type='button' class='score-step' data-delta='1' aria-label='Sumar gol a <%= m.home_team %>' <%= locked ? 'disabled' : '' %>>+</button></div>
     </div>
     <label class='team-label team-label-below'><span><%= m.home_team %></span></label>
   </div>
@@ -134,16 +165,15 @@
   <div class='score-col'>
     <div class='score-input-wrap score-input-wrap-right'>
       <img class='team-logo score-box-logo hide-on-error' src='<%= m.away_logo || "" %>' alt=''/>
-      <input type='number' min='0' class='pa' value='<%= p ? p.pred_away : "" %>' <%= locked ? 'disabled' : '' %> />
+      <div class='score-control'><button type='button' class='score-step' data-delta='-1' aria-label='Restar gol a <%= m.away_team %>' <%= locked ? 'disabled' : '' %>>−</button><input type='number' min='0' max='30' inputmode='numeric' class='pa' value='<%= p ? p.pred_away : "" %>' <%= locked ? 'disabled' : '' %> /><button type='button' class='score-step' data-delta='1' aria-label='Sumar gol a <%= m.away_team %>' <%= locked ? 'disabled' : '' %>>+</button></div>
     </div>
     <label class='team-label team-label-right team-label-below'><span><%= m.away_team %></span></label>
   </div>
 </div>
-<div class='inline'>
-<button class='save' <%= locked ? 'disabled' : '' %>><%= locked ? 'Locked' : 'Save' %></button>
-<% if (m.status==='live') { %><span class='badge'>Live</span><% } %>
+<div class='inline prediction-status'>
+<% if (m.status==='live') { %><span class='badge'>En vivo</span><% } %>
 <% if (m.status==='finished') { %><span class='badge'>Final</span><% } %>
-<% if (locked && m.status!=='finished') { %><span class='badge'>Locked (-15m)</span><% } %>
+<% if (locked && m.status!=='finished') { %><span class='badge'>Cerrado</span><% } %>
 </div>
 <small class='fixture-meta'><%= m.kickoff_local || m.kickoff_at %></small>
 </div>
@@ -151,8 +181,20 @@
 <% } else { %>
   <p class='muted'>No hay partidos pendientes para registrar pronósticos.</p>
 <% } %>
-</div></section>
+</div>
+<% if (matches.some(m => { const lockMs = new Date(m.kickoff_at).getTime() - (15 * 60 * 1000); return m.status !== 'finished' && nowMs < lockMs; })) { %>
+  <div class='save-all-bar'>
+    <div><strong id='save-status'>Completa tus marcadores</strong><small id='save-detail'>Los cambios se guardan juntos</small></div>
+    <button type='button' id='save-all'>Guardar todos</button>
+  </div>
+<% } %>
+</section>
 </main>
+<nav class='mobile-nav' aria-label='Navegación de quiniela'>
+  <a href='/dashboard'><span>⌂</span>Inicio</a>
+  <a class='is-active' href='#predicciones'><span>✓</span>Pronósticos</a>
+  <a href='#standings-card'><span>🏆</span>Tabla</a>
+</nav>
 <script src='/app.js' defer></script>
 <script src='/vendor/html2canvas.min.js' defer></script>
 <script nonce="<%= cspNonce %>">
@@ -160,7 +202,65 @@ const csrfToken = <%- safeJson(csrfToken) %>;
 const snapshotPoolName = <%- safeJson(pool.name) %>;
 const snapshotPoolCode = <%- safeJson(pool.code) %>;
 const snapshotLogo = <%- safeJson(competitionLogo(pool.competition_type)) %>;
-document.querySelectorAll('.prediction .save').forEach(btn=>{btn.onclick=async()=>{const row=btn.closest('.prediction');const id=row.dataset.match;const ph=row.querySelector('.ph').value;const pa=row.querySelector('.pa').value;const r=await fetch(`/pools/<%= pool.id %>/predictions/${id}`,{method:'POST',headers:{'Content-Type':'application/json','x-csrf-token':csrfToken},body:JSON.stringify({pred_home:ph,pred_away:pa})});if(r.ok){btn.textContent='Saved';setTimeout(()=>btn.textContent='Save',900);}else{const j=await r.json().catch(()=>({}));alert(j.error||'Prediction is locked.');}}})
+const editableRows = Array.from(document.querySelectorAll('.prediction:not(.is-locked)'));
+const saveAllBtn = document.getElementById('save-all');
+const saveStatus = document.getElementById('save-status');
+const saveDetail = document.getElementById('save-detail');
+const completionCount = document.getElementById('completion-count');
+
+function updateCompletion() {
+  const complete = editableRows.filter((row) => row.querySelector('.ph').value !== '' && row.querySelector('.pa').value !== '').length;
+  if (completionCount) completionCount.textContent = `${complete}/${editableRows.length} completos`;
+  if (saveAllBtn) saveAllBtn.disabled = complete !== editableRows.length;
+  if (saveStatus) saveStatus.textContent = complete === editableRows.length ? 'Listo para guardar' : `${editableRows.length - complete} pendiente${editableRows.length - complete === 1 ? '' : 's'}`;
+}
+
+document.querySelectorAll('.score-step').forEach((button) => {
+  button.addEventListener('click', () => {
+    const input = button.parentElement.querySelector('input');
+    const next = Math.max(0, Math.min(30, Number(input.value || 0) + Number(button.dataset.delta || 0)));
+    input.value = String(next);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+});
+editableRows.forEach((row) => row.querySelectorAll('input').forEach((input) => input.addEventListener('input', updateCompletion)));
+updateCompletion();
+
+if (saveAllBtn) {
+  saveAllBtn.addEventListener('click', async () => {
+    const predictions = editableRows.map((row) => ({
+      match_id: Number(row.dataset.match),
+      pred_home: row.querySelector('.ph').value,
+      pred_away: row.querySelector('.pa').value,
+    }));
+    if (predictions.some((pick) => pick.pred_home === '' || pick.pred_away === '')) {
+      alert('Completa todos los marcadores antes de guardar.');
+      return;
+    }
+    saveAllBtn.disabled = true;
+    saveAllBtn.textContent = 'Guardando…';
+    try {
+      const response = await fetch(`/pools/<%= pool.id %>/predictions`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','x-csrf-token':csrfToken},
+        body: JSON.stringify({ predictions }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'No se pudieron guardar los pronósticos.');
+      saveAllBtn.textContent = 'Guardados ✓';
+      if (saveStatus) saveStatus.textContent = 'Pronósticos guardados';
+      if (saveDetail) saveDetail.textContent = `${result.saved} marcadores actualizados`;
+      setTimeout(() => {
+        saveAllBtn.textContent = 'Guardar todos';
+        saveAllBtn.disabled = false;
+      }, 1600);
+    } catch (error) {
+      alert(error.message);
+      saveAllBtn.textContent = 'Guardar todos';
+      saveAllBtn.disabled = false;
+    }
+  });
+}
 
 const copyBtn = document.getElementById('copy-invite');
 const inviteInput = document.getElementById('invite-link');

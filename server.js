@@ -237,6 +237,13 @@ const createPoolSchema = z.object({
 });
 const joinPoolSchema = z.object({ code: z.string().trim().min(4).max(16) });
 const predictionSchema = z.object({ pred_home: z.coerce.number().int().min(0).max(30), pred_away: z.coerce.number().int().min(0).max(30) });
+const batchPredictionsSchema = z.object({
+  predictions: z.array(z.object({
+    match_id: z.coerce.number().int().positive(),
+    pred_home: z.coerce.number().int().min(0).max(30),
+    pred_away: z.coerce.number().int().min(0).max(30),
+  })).min(1).max(100),
+});
 const COMPETITIONS = {
   liga_mx: { key: 'liga_mx', label: 'Liga MX', leagueLabel: 'Liga MX', expectedMatches: 9, roundLabel: 'Jornada' },
   champions_league: { key: 'champions_league', label: 'Champions League', leagueLabel: 'UEFA Champions League', expectedMatches: 4, roundLabel: 'Round' },
@@ -384,6 +391,72 @@ function poolStandings(poolId) {
       exact_pct: finishedPicks ? Math.round((exactPicks / finishedPicks) * 100) : null,
     };
   });
+}
+
+function rankRows(rows, scoreKey) {
+  return [...rows]
+    .sort((a, b) => Number(b[scoreKey] || 0) - Number(a[scoreKey] || 0) || a.name.localeCompare(b.name))
+    .map((row, index) => ({ ...row, rank: index + 1 }));
+}
+
+function poolMatchdayStandings(pool, matches, nowMs = Date.now()) {
+  const rounds = groupPredictionMatches(matches, pool.competition_type || 'liga_mx');
+  if (!rounds.length) return null;
+
+  const startedRounds = rounds.filter((round) => round.matches.some((match) => matchHasStarted(match, nowMs)));
+  const upcomingRound = rounds.find((round) => round.matches.some((match) => !matchHasStarted(match, nowMs)));
+  const selectedRound = upcomingRound || startedRounds[startedRounds.length - 1] || rounds[0];
+  const matchIds = selectedRound.matches.map((match) => Number(match.id)).filter(Number.isInteger);
+  if (!matchIds.length) return null;
+
+  const members = db.prepare(`
+    SELECT u.id, u.name
+    FROM pool_members pm
+    JOIN users u ON u.id = pm.user_id
+    WHERE pm.pool_id = ?
+  `).all(pool.id);
+  const roundPoints = db.prepare(`
+    SELECT user_id, COALESCE(SUM(points), 0) AS points
+    FROM predictions
+    WHERE pool_id = ?
+      AND match_id IN (${matchIds.map(() => '?').join(',')})
+    GROUP BY user_id
+  `).all(pool.id, ...matchIds);
+  const pointsByUser = new Map(roundPoints.map((row) => [Number(row.user_id), Number(row.points || 0)]));
+  const overall = poolStandings(pool.id);
+  const overallByUser = new Map(overall.map((row, index) => [Number(row.id), { points: Number(row.points || 0), rank: index + 1 }]));
+
+  const baseRows = members.map((member) => {
+    const matchdayPoints = pointsByUser.get(Number(member.id)) || 0;
+    const overallRow = overallByUser.get(Number(member.id)) || { points: 0, rank: members.length };
+    return {
+      ...member,
+      matchday_points: matchdayPoints,
+      overall_points: overallRow.points,
+      overall_rank: overallRow.rank,
+      previous_points: overallRow.points - matchdayPoints,
+    };
+  });
+  const previousRanks = new Map(rankRows(baseRows, 'previous_points').map((row) => [Number(row.id), row.rank]));
+  const rows = rankRows(baseRows, 'matchday_points').map((row) => ({
+    ...row,
+    rank_change: (previousRanks.get(Number(row.id)) || row.overall_rank) - row.overall_rank,
+  }));
+  const finishedMatches = selectedRound.matches.filter((match) => match.status === 'finished').length;
+  const topPoints = Math.max(0, ...rows.map((row) => row.matchday_points));
+  const winnerNames = finishedMatches > 0
+    ? rows.filter((row) => row.matchday_points === topPoints).map((row) => row.name)
+    : [];
+
+  return {
+    key: selectedRound.key,
+    label: selectedRound.label,
+    rows,
+    finishedMatches,
+    totalMatches: selectedRound.matches.length,
+    winnerNames,
+    complete: finishedMatches === selectedRound.matches.length,
+  };
 }
 
 const CHART_COLORS = ['#4cc9ff', '#ffe58a', '#2fe2a8', '#ff7aa8', '#b794ff', '#ff9f43', '#7dd3fc', '#f87171'];
@@ -1227,6 +1300,7 @@ app.post('/account/password', auth, async (req, res) => {
 });
 
 app.get('/dashboard', auth, (req, res) => {
+  const nowMs = Date.now();
   const poolsRaw = db.prepare(`
     SELECT p.*, (SELECT COUNT(*) FROM pool_members pm WHERE pm.pool_id = p.id) members
     FROM pools p
@@ -1247,6 +1321,7 @@ app.get('/dashboard', auth, (req, res) => {
   `);
 
   const pools = poolsRaw.map((p) => {
+    const poolMatches = getPoolMatches(p.id);
     const matchStats = db.prepare(`
       SELECT COUNT(*) AS total,
              SUM(CASE WHEN m.status = 'finished' THEN 1 ELSE 0 END) AS finished
@@ -1259,11 +1334,38 @@ app.get('/dashboard', auth, (req, res) => {
     const finishedMatches = Number(matchStats?.finished || 0);
     const poolFinished = totalMatches > 0 && finishedMatches === totalMatches;
     const winner = poolFinished ? winnerStmt.get(p.id) : null;
+    const standings = poolStandings(p.id);
+    const myRankIndex = standings.findIndex((row) => Number(row.id) === Number(req.session.user.id));
+    const predictionByMatch = new Set(db.prepare(`
+      SELECT match_id
+      FROM predictions
+      WHERE pool_id = ? AND user_id = ?
+    `).all(p.id, req.session.user.id).map((row) => Number(row.match_id)));
+    const editableMatches = poolMatches.filter((match) => {
+      const kickoffMs = new Date(match.kickoff_at).getTime();
+      return match.status !== 'finished'
+        && Number.isFinite(kickoffMs)
+        && nowMs < kickoffMs - (15 * 60 * 1000);
+    });
+    const incompleteMatches = editableMatches.filter((match) => !predictionByMatch.has(Number(match.id)));
+    const nextLockMs = editableMatches.length
+      ? Math.min(...editableMatches.map((match) => new Date(match.kickoff_at).getTime() - (15 * 60 * 1000)))
+      : null;
+    const rounds = groupPredictionMatches(poolMatches, p.competition_type || 'liga_mx');
+    const activeRound = rounds.find((round) => round.matches.some((match) => editableMatches.some((editable) => editable.id === match.id)))
+      || rounds[rounds.length - 1]
+      || null;
 
     return {
       ...p,
       pool_finished: poolFinished,
       winner_name: winner?.name || null,
+      my_rank: myRankIndex >= 0 ? myRankIndex + 1 : null,
+      my_points: myRankIndex >= 0 ? Number(standings[myRankIndex].points || 0) : 0,
+      incomplete_count: incompleteMatches.length,
+      editable_count: editableMatches.length,
+      next_lock_local: nextLockMs ? formatCentral(new Date(nextLockMs).toISOString()) : null,
+      active_round_label: activeRound?.label || null,
     };
   });
 
@@ -1519,6 +1621,7 @@ app.get('/pools/:id', auth, (req, res) => {
   const preds = db.prepare('SELECT * FROM predictions WHERE pool_id = ? AND user_id = ?').all(pool.id, req.session.user.id);
   const predByMatch = new Map(preds.map((p) => [p.match_id, p]));
   const standings = poolStandings(pool.id);
+  const matchdayStandings = poolMatchdayStandings(pool, matches, nowMs);
   const pointsProgression = poolPointsProgression(pool, matches);
   const roundOf32Matches = pool.competition_type === 'world_cup_2026'
     ? worldCupRoundMatches(matches, 'round_of_32')
@@ -1530,7 +1633,7 @@ app.get('/pools/:id', auth, (req, res) => {
   const proto = req.get('x-forwarded-proto') || req.protocol;
   const inviteLink = `${proto}://${req.get('host')}/invite/${pool.code}`;
 
-  res.render('pool', { pool, matches: visibleMatches, predByMatch, standings, pointsProgression, roundOf32PointsProgression, knockoutCircle, poolFinished, canViewOthersPicks, nowMs, inviteLink, competitionLogo });
+  res.render('pool', { pool, matches: visibleMatches, predByMatch, standings, matchdayStandings, pointsProgression, roundOf32PointsProgression, knockoutCircle, poolFinished, canViewOthersPicks, nowMs, inviteLink, competitionLogo });
 });
 
 app.get('/pools/:id/pronosticos', auth, (req, res) => {
@@ -1677,6 +1780,58 @@ app.post('/pools/:id/predictions/:matchId', auth, (req, res) => {
   if (match.status === 'finished') recalcPointsForMatch(matchId);
 
   res.json({ ok: true });
+});
+
+app.post('/pools/:id/predictions', auth, (req, res) => {
+  const poolId = Number(req.params.id);
+  const input = parseBody(batchPredictionsSchema, req.body);
+  if (!Number.isInteger(poolId) || !input) {
+    return res.status(400).json({ ok: false, error: 'Invalid predictions.' });
+  }
+
+  const member = db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = ?').get(poolId, req.session.user.id);
+  if (!member) return res.status(403).json({ ok: false, error: 'Join this pool first.' });
+
+  const uniqueIds = new Set(input.predictions.map((prediction) => prediction.match_id));
+  if (uniqueIds.size !== input.predictions.length) {
+    return res.status(400).json({ ok: false, error: 'Duplicate matches are not allowed.' });
+  }
+
+  const matchStmt = db.prepare(`
+    SELECT m.*
+    FROM pool_matches pm
+    JOIN matches m ON m.id = pm.match_id
+    WHERE pm.pool_id = ? AND m.id = ?
+  `);
+  const rows = input.predictions.map((prediction) => ({
+    prediction,
+    match: matchStmt.get(poolId, prediction.match_id),
+  }));
+  const invalid = rows.find(({ match }) => {
+    if (!match) return true;
+    const kickoffMs = new Date(match.kickoff_at).getTime();
+    return match.status === 'finished'
+      || !Number.isFinite(kickoffMs)
+      || Date.now() >= kickoffMs - (15 * 60 * 1000);
+  });
+  if (invalid) {
+    return res.status(403).json({ ok: false, error: 'One or more predictions are locked. Refresh and try again.' });
+  }
+
+  const upsert = db.prepare(`
+    INSERT INTO predictions (pool_id, user_id, match_id, pred_home, pred_away)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(pool_id, user_id, match_id)
+    DO UPDATE SET pred_home = excluded.pred_home, pred_away = excluded.pred_away, updated_at = CURRENT_TIMESTAMP
+  `);
+  db.transaction(() => {
+    for (const { prediction } of rows) {
+      upsert.run(poolId, req.session.user.id, prediction.match_id, prediction.pred_home, prediction.pred_away);
+    }
+  })();
+
+  logEvent('predictions.batch_save', { poolId, count: rows.length }, req, true);
+  return res.json({ ok: true, saved: rows.length });
 });
 
 // admin endpoint for manual final score entry

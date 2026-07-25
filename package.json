@@ -18,7 +18,7 @@
     "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.6.2",
-    "ejs": "^4.0.1",
+    "ejs": "^6.0.1",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
     "helmet": "^8.1.0",

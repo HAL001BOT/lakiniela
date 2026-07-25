@@ -135,6 +135,25 @@ async function main() {
     throw new Error('Pool reconciliation mixed seasons with the same matchday');
   }
 
+  const batchPoolPage = await owner.get(`/pools/${pool.id}`).expect(200);
+  if (!batchPoolPage.text.includes('Guardar todos') || !batchPoolPage.text.includes('CLASIFICACIÓN DE JORNADA')) {
+    throw new Error('Matchday prediction and standings UI is missing');
+  }
+  await owner.post(`/pools/${pool.id}/predictions`)
+    .set('x-csrf-token', csrfFrom(batchPoolPage))
+    .send({
+      predictions: [
+        { match_id: match.lastInsertRowid, pred_home: 2, pred_away: 1 },
+        { match_id: secondMatch.lastInsertRowid, pred_home: 0, pred_away: 0 },
+      ],
+    })
+    .expect(200);
+  const batchSaved = db.prepare('SELECT pred_home, pred_away FROM predictions WHERE pool_id = ? AND match_id = ?')
+    .get(pool.id, secondMatch.lastInsertRowid);
+  if (batchSaved?.pred_home !== 0 || batchSaved?.pred_away !== 0) {
+    throw new Error('Batch prediction save did not persist every match');
+  }
+
   db.prepare('UPDATE matches SET kickoff_at = ? WHERE id = ?')
     .run(new Date(Date.now() + (5 * 60 * 1000)).toISOString(), match.lastInsertRowid);
   const lockedPoolPage = await owner.get(`/pools/${pool.id}`).expect(200);
@@ -148,8 +167,25 @@ async function main() {
   if (saved?.pred_home !== 2 || saved?.pred_away !== 1) {
     throw new Error('Locked prediction overwrote the saved pick');
   }
+  await owner.post(`/pools/${pool.id}/predictions`)
+    .set('x-csrf-token', csrfFrom(lockedPoolPage))
+    .send({
+      predictions: [
+        { match_id: match.lastInsertRowid, pred_home: 3, pred_away: 1 },
+        { match_id: secondMatch.lastInsertRowid, pred_home: 4, pred_away: 2 },
+      ],
+    })
+    .expect(403);
+  const atomicSaved = db.prepare('SELECT pred_home, pred_away FROM predictions WHERE pool_id = ? AND match_id = ?')
+    .get(pool.id, secondMatch.lastInsertRowid);
+  if (atomicSaved?.pred_home !== 0 || atomicSaved?.pred_away !== 0) {
+    throw new Error('Rejected batch partially overwrote an unlocked prediction');
+  }
 
   const ownerDashboard = await owner.get('/dashboard').expect(200);
+  if (!ownerDashboard.text.includes('TU JORNADA') || !ownerDashboard.text.includes('Mis quinielas')) {
+    throw new Error('Action-oriented dashboard UI is missing');
+  }
   await owner.post('/logout')
     .type('form')
     .send({ _csrf: csrfFrom(ownerDashboard) })
