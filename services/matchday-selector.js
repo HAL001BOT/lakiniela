@@ -92,7 +92,19 @@ function attachUnassignedMatches(rounds, matches) {
 }
 
 function inferMissingMatchdays(matches) {
-  const rounds = attachUnassignedMatches(roundsFromMatchday(matches), matches);
+  const ordered = orderedMatches(matches);
+  const explicitRounds = roundsFromMatchday(ordered);
+  const rounds = explicitRounds.length
+    ? attachUnassignedMatches(explicitRounds, ordered)
+    : roundsFromSchedule(ordered).map((round, index) => ({
+      ...round,
+      matchday: index + 1,
+      matches: round.matches.map((match) => ({
+        ...match,
+        matchday: index + 1,
+        inferred_matchday: true,
+      })),
+    }));
   const inferredById = new Map(
     rounds
       .flatMap((round) => round.matches)

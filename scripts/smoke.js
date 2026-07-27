@@ -44,7 +44,7 @@ function main() {
   }
   mustExist(path.join(__dirname, '..', 'views', 'predictions-dashboard.ejs'));
 
-  const { selectActiveMatchday, roundsFromSchedule } = require('../services/matchday-selector');
+  const { selectActiveMatchday, roundsFromSchedule, inferMissingMatchdays } = require('../services/matchday-selector');
   const makeMatch = (id, matchday, kickoffAt, home, away, status = 'scheduled') => ({
     id,
     matchday,
@@ -119,6 +119,18 @@ function main() {
   ]);
   if (fallbackRounds.length !== 2 || fallbackRounds[0].matches.length !== 2) {
     throw new Error('Schedule fallback must split rounds when a team repeats');
+  }
+  const inferredRounds = inferMissingMatchdays([
+    makeMatch(210, null, '2026-07-17T20:00:00Z', 'A', 'B'),
+    makeMatch(211, null, '2026-07-18T20:00:00Z', 'C', 'D'),
+    makeMatch(212, null, '2026-07-24T20:00:00Z', 'A', 'C'),
+    makeMatch(213, null, '2026-07-25T20:00:00Z', 'B', 'D'),
+  ]);
+  if (
+    inferredRounds.filter((match) => match.matchday === 1).length !== 2
+    || inferredRounds.filter((match) => match.matchday === 2).length !== 2
+  ) {
+    throw new Error('Missing ESPN week metadata must become sequential numbered matchdays');
   }
 
   const smokeDb = require('../db');

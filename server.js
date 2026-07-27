@@ -1085,17 +1085,17 @@ function getPoolMatches(poolId) {
   return out;
 }
 
-function ligaMxMatchesForMatchday(seasonKey, matchday) {
-  if (!seasonKey || !Number.isInteger(Number(matchday)) || Number(matchday) < 1) return [];
+function ligaMxMatchesForSeason(seasonKey) {
+  if (!seasonKey) return [];
   return db.prepare(`
     SELECT *
     FROM matches
     WHERE league = 'Liga MX'
       AND external_id LIKE 'espn:%'
       AND season_key = ?
-      AND matchday = ?
-    ORDER BY kickoff_at ASC, id ASC
-  `).all(String(seasonKey), Number(matchday));
+      AND matchday IS NOT NULL
+    ORDER BY matchday ASC, kickoff_at ASC, id ASC
+  `).all(String(seasonKey));
 }
 
 function ensurePoolMatches(pool) {
@@ -1130,7 +1130,10 @@ function reconcileLigaMxPools() {
     if (!matches.length) {
       const snapshot = getUpcomingUniqueScheduledMatches('liga_mx');
       const before = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
-      lockPoolMatches(pool.id, snapshot.matches);
+      lockPoolMatches(
+        pool.id,
+        snapshot.seasonKey ? ligaMxMatchesForSeason(snapshot.seasonKey) : snapshot.matches
+      );
       const after = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
       matchesAdded += Number(after) - Number(before);
       if (snapshot.matchday) {
@@ -1144,7 +1147,7 @@ function reconcileLigaMxPools() {
 
     if (currentSeasonKey && Number.isInteger(currentMatchday) && currentMatchday > 0) {
       const before = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
-      lockPoolMatches(pool.id, ligaMxMatchesForMatchday(currentSeasonKey, currentMatchday));
+      lockPoolMatches(pool.id, ligaMxMatchesForSeason(currentSeasonKey));
       const after = db.prepare('SELECT COUNT(*) c FROM pool_matches WHERE pool_id = ?').get(pool.id).c;
       matchesAdded += Number(after) - Number(before);
     }
@@ -1566,7 +1569,10 @@ app.post('/pools/create', auth, (req, res) => {
       competitionType === 'liga_mx' ? snapshot.seasonKey : null
     );
     db.prepare('INSERT INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(info.lastInsertRowid, req.session.user.id);
-    lockPoolMatches(info.lastInsertRowid, snapshot.matches);
+    const poolMatches = competitionType === 'liga_mx' && snapshot.seasonKey
+      ? ligaMxMatchesForSeason(snapshot.seasonKey)
+      : snapshot.matches;
+    lockPoolMatches(info.lastInsertRowid, poolMatches);
   });
   tx();
   logEvent('pool.create', { poolName: input.name, poolCode, competitionType }, req, true);

@@ -7,8 +7,9 @@ const COMPETITIONS = {
     key: 'liga_mx',
     leagueLabel: 'Liga MX',
     espnPath: 'mex.1',
-    dateLookbackDays: 7,
-    dateAheadDays: 21,
+    dateLookbackDays: 45,
+    dateAheadDays: 150,
+    dateChunkDays: 35,
   },
   CHAMPIONS_LEAGUE: {
     key: 'champions_league',
@@ -186,6 +187,22 @@ async function fetchEspnCompetition(config) {
   from.setDate(from.getDate() - (config.dateLookbackDays || 7));
   const to = new Date(now);
   to.setDate(to.getDate() + (config.dateAheadDays || 21));
+
+  if (config.dateChunkDays) {
+    const byId = new Map();
+    let cursor = new Date(from);
+    while (cursor <= to) {
+      const chunkEnd = new Date(cursor);
+      chunkEnd.setDate(chunkEnd.getDate() + config.dateChunkDays - 1);
+      if (chunkEnd > to) chunkEnd.setTime(to.getTime());
+      const fixtures = await fetchEspnCompetitionRange(config, `${fmt(cursor)}-${fmt(chunkEnd)}`);
+      for (const fixture of fixtures) byId.set(fixture.externalId, fixture);
+      cursor = new Date(chunkEnd);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return [...byId.values()].sort((a, b) => new Date(a.kickoffAt) - new Date(b.kickoffAt));
+  }
+
   return fetchEspnCompetitionRange(config, `${fmt(from)}-${fmt(to)}`);
 }
 
