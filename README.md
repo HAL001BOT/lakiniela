@@ -24,11 +24,15 @@ Open: `http://localhost:3090`
 - `ADMIN_KEY` → protects admin endpoints (`/admin/matches/:id/final`, `/admin/sync`)
 - `SESSION_SECRET`
 - `DB_PATH` → SQLite file path. **Required in production** and must point to
-  persistent storage (for example `/var/data/lakiniela.db` on a mounted Render disk).
+  the existing persistent disk's exact mount path plus `/lakiniela.db`.
+- `PUBLIC_BASE_URL` → canonical HTTPS origin used in invite links (for example
+  `https://lakiniela.onrender.com`).
 
 Production startup fails closed when `SESSION_SECRET`, `ADMIN_KEY`, or `DB_PATH`
 is missing. Configure a single web instance when using SQLite; the database-backed
 job lock prevents duplicate syncs only when every process shares the same DB file.
+Configure Render health checks to use `/health`. `/ready` is also available for
+readiness probes.
 
 ## Notes
 - Sync now uses ESPN public scoreboard feed (no API key required).
@@ -38,13 +42,16 @@ job lock prevents duplicate syncs only when every process shares the same DB fil
 This repo now includes GitHub Actions at `.github/workflows/ci-deploy.yml`.
 
 What it does:
-- Runs smoke checks on PRs to `main`
-- Runs smoke checks on pushes to `main`
-- Optionally triggers a Render deploy hook after CI passes
+- Runs smoke, migration, and HTTP checks on PRs and pushes to `main`
+- Triggers a Render deploy hook after CI passes
+- Polls `/health` until the exact Git commit is live
 
 To enable instant Render trigger after push:
 1. In Render, copy your service Deploy Hook URL
 2. In GitHub repo settings → Secrets and variables → Actions, add:
    - `RENDER_DEPLOY_HOOK_URL` = your hook URL
+   - `RENDER_HEALTHCHECK_URL` = your production URL ending in `/health`
 
-If that secret is not set, deployment still works via Render auto-deploy from `main`.
+The deploy job fails when either secret is absent or when Render never reaches the
+expected revision. Render auto-deploy should be disabled when the deploy hook is
+used, avoiding duplicate deploys.

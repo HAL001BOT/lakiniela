@@ -21,8 +21,15 @@
     <img class='brand-logo big' src='<%= logoPath || "/img/logo.png" %>' alt='pool logo'/>
     <h1><%= pool.name %></h1>
     <p>You're invited to join this pool.</p>
-    <a href='/login'><button type='button'>Login to join</button></a>
-    <a href='/register'><button type='button'>Create account</button></a>
+    <% if (user) { %>
+      <form method='post' action='/invite/<%= pool.code %>'>
+        <input type='hidden' name='_csrf' value='<%= csrfToken %>'/>
+        <button type='submit'>Join pool</button>
+      </form>
+    <% } else { %>
+      <a href='/login'><button type='button'>Login to join</button></a>
+      <a href='/register'><button type='button'>Create account</button></a>
+    <% } %>
   </div>
 </body>
 </html>

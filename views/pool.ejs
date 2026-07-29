@@ -131,6 +131,13 @@
   <% if (matches.length) { %><span class='completion-pill' id='completion-count'>0/<%= matches.length %> completos</span><% } %>
 </div>
 <p class='muted'>3 pts por resultado correcto · 5 pts por marcador exacto. Se cierran 15 minutos antes.</p>
+<% if (predictionRounds.length > 1) { %>
+  <nav class='round-tabs' aria-label='Selecciona jornada'>
+    <% predictionRounds.forEach((round) => { %>
+      <a class='<%= round.key === selectedPredictionRound.key ? "is-active" : "" %>' href='/pools/<%= pool.id %>?round=<%= encodeURIComponent(round.key) %>#predicciones'><%= round.label %></a>
+    <% }) %>
+  </nav>
+<% } %>
 <div class='invite-row'>
   <input class='invite-link' id='invite-link' readonly value='<%= inviteLink %>' />
   <button type='button' id='copy-invite'>Copy invite</button>
@@ -184,8 +191,8 @@
 </div>
 <% if (matches.some(m => { const lockMs = new Date(m.kickoff_at).getTime() - (15 * 60 * 1000); return m.status !== 'finished' && nowMs < lockMs; })) { %>
   <div class='save-all-bar'>
-    <div><strong id='save-status'>Completa tus marcadores</strong><small id='save-detail'>Los cambios se guardan juntos</small></div>
-    <button type='button' id='save-all'>Guardar todos</button>
+    <div><strong id='save-status'>Completa tus marcadores</strong><small id='save-detail'>Se guarda solo <%= selectedPredictionRound.label || "esta jornada" %></small></div>
+    <button type='button' id='save-all'>Guardar jornada</button>
   </div>
 <% } %>
 </section>
@@ -251,12 +258,12 @@ if (saveAllBtn) {
       if (saveStatus) saveStatus.textContent = 'Pronósticos guardados';
       if (saveDetail) saveDetail.textContent = `${result.saved} marcadores actualizados`;
       setTimeout(() => {
-        saveAllBtn.textContent = 'Guardar todos';
+        saveAllBtn.textContent = 'Guardar jornada';
         saveAllBtn.disabled = false;
       }, 1600);
     } catch (error) {
       alert(error.message);
-      saveAllBtn.textContent = 'Guardar todos';
+      saveAllBtn.textContent = 'Guardar jornada';
       saveAllBtn.disabled = false;
     }
   });

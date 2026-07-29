@@ -50,4 +50,28 @@ jobs:
 
       - name: No deploy hook configured
         if: ${{ steps.hook.outputs.hook == '' }}
-        run: echo "Set RENDER_DEPLOY_HOOK_URL (or RENDER_DEPLOY_HOOK) in GitHub Actions secrets."
+        run: |
+          echo "::error::Set RENDER_DEPLOY_HOOK_URL (or RENDER_DEPLOY_HOOK) in GitHub Actions secrets."
+          exit 1
+
+      - name: Verify deployed revision is healthy
+        env:
+          HEALTH_URL: ${{ secrets.RENDER_HEALTHCHECK_URL }}
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$HEALTH_URL" ]; then
+            echo "::error::Set RENDER_HEALTHCHECK_URL to the production /health URL."
+            exit 1
+          fi
+          for attempt in $(seq 1 60); do
+            BODY="$(curl -fsS --max-time 10 "$HEALTH_URL" || true)"
+            VERSION="$(printf '%s' "$BODY" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{process.stdout.write(JSON.parse(s).version||'')}catch{}})")"
+            if [ "$VERSION" = "$EXPECTED_SHA" ]; then
+              echo "Production is healthy at revision $EXPECTED_SHA."
+              exit 0
+            fi
+            echo "Waiting for Render revision ($attempt/60)..."
+            sleep 10
+          done
+          echo "::error::Render did not become healthy at revision $EXPECTED_SHA within 10 minutes."
+          exit 1

@@ -622,3 +622,6 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .save-all-bar button{min-width:126px}
   .round-standings li{grid-template-columns:32px 1fr 36px auto}
 }
+.round-tabs{display:flex;gap:8px;overflow-x:auto;padding:4px 0 12px;scrollbar-width:thin}
+.round-tabs a{flex:0 0 auto;padding:8px 12px;border:1px solid var(--border,#2f3b4a);border-radius:999px;text-decoration:none;color:inherit}
+.round-tabs a.is-active{background:var(--accent,#1f7a4d);border-color:var(--accent,#1f7a4d);color:#fff}

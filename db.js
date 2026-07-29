@@ -8,8 +8,10 @@ if (process.env.NODE_ENV === 'production' && !process.env.DB_PATH) {
 }
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 const db = new Database(dbPath);
+db.pragma('busy_timeout = 5000');
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+db.pragma('synchronous = NORMAL');
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS users (
@@ -130,6 +132,11 @@ CREATE TABLE IF NOT EXISTS job_locks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_events_created_at ON audit_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_predictions_pool_user ON predictions(pool_id, user_id);
+CREATE INDEX IF NOT EXISTS idx_pool_matches_pool ON pool_matches(pool_id);
+CREATE INDEX IF NOT EXISTS idx_pool_members_user ON pool_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_store_expires_at ON sessions_store(expires_at);
+CREATE INDEX IF NOT EXISTS idx_rate_limits_reset_at ON rate_limits(reset_at);
 `);
 
 function hasColumn(table, column) {
@@ -166,6 +173,11 @@ runMigration('002_seasons_and_sessions', () => {
   addColumn('pools', 'current_season_key TEXT');
   addColumn('users', 'session_version INTEGER NOT NULL DEFAULT 1');
 });
+
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_matches_schedule
+  ON matches(league, season_key, matchday, kickoff_at);
+`);
 
 const duplicateExternalMatches = db.prepare(`
   SELECT external_id, MIN(id) AS keep_id

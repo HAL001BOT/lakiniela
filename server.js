@@ -9,11 +9,13 @@ const db = require('./db');
 const { recalcPointsForMatch, syncLigaMxScores, syncChampionsLeagueScores, syncWorldCupScores } = require('./services/updater');
 const { predictionStatus, groupPredictionMatches } = require('./services/predictions-dashboard');
 const { selectActiveMatchday } = require('./services/matchday-selector');
+const SqliteSessionStore = require('./services/sqlite-session-store');
 
 const app = express();
 const PORT = process.env.PORT || 3090;
 const isProd = process.env.NODE_ENV === 'production';
 app.set('trust proxy', 1);
+app.disable('x-powered-by');
 
 const sessionSecret = process.env.SESSION_SECRET;
 const adminKey = process.env.ADMIN_KEY;
@@ -31,56 +33,7 @@ const adminAllowlist = new Set(
     .filter(Boolean)
 );
 
-class SqliteSessionStore extends session.Store {
-  get(sid, cb) {
-    try {
-      const row = db.prepare('SELECT sess, expires_at FROM sessions_store WHERE sid = ?').get(sid);
-      if (!row) return cb(null, null);
-      if (row.expires_at <= Date.now()) {
-        db.prepare('DELETE FROM sessions_store WHERE sid = ?').run(sid);
-        return cb(null, null);
-      }
-      return cb(null, JSON.parse(row.sess));
-    } catch (err) {
-      return cb(err);
-    }
-  }
-
-  set(sid, sess, cb) {
-    try {
-      const expiresAt = sess?.cookie?.expires ? new Date(sess.cookie.expires).getTime() : Date.now() + (7 * 24 * 60 * 60 * 1000);
-      db.prepare(`
-        INSERT INTO sessions_store (sid, sess, expires_at, updated_at)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT(sid) DO UPDATE SET sess=excluded.sess, expires_at=excluded.expires_at, updated_at=excluded.updated_at
-      `).run(sid, JSON.stringify(sess), expiresAt, Date.now());
-      cb && cb(null);
-    } catch (err) {
-      cb && cb(err);
-    }
-  }
-
-  destroy(sid, cb) {
-    try {
-      db.prepare('DELETE FROM sessions_store WHERE sid = ?').run(sid);
-      cb && cb(null);
-    } catch (err) {
-      cb && cb(err);
-    }
-  }
-
-  touch(sid, sess, cb) {
-    try {
-      const expiresAt = sess?.cookie?.expires ? new Date(sess.cookie.expires).getTime() : Date.now() + (7 * 24 * 60 * 60 * 1000);
-      db.prepare('UPDATE sessions_store SET expires_at = ?, updated_at = ? WHERE sid = ?').run(expiresAt, Date.now(), sid);
-      cb && cb(null);
-    } catch (err) {
-      cb && cb(err);
-    }
-  }
-}
-
-const sessionStore = new SqliteSessionStore();
+const sessionStore = new SqliteSessionStore(db);
 
 function logEvent(eventType, detail = {}, req = null, ok = true) {
   const payload = { ...detail };
@@ -90,13 +43,26 @@ function logEvent(eventType, detail = {}, req = null, ok = true) {
   const method = req?.method || null;
   db.prepare(`INSERT INTO audit_events (event_type, actor_user_id, ip, path, method, ok, detail) VALUES (?, ?, ?, ?, ?, ?, ?)`)
     .run(eventType, actorUserId, ip, path, method, ok ? 1 : 0, JSON.stringify(payload));
-  console.log(JSON.stringify({ ts: new Date().toISOString(), eventType, actorUserId, ip, path, method, ok, ...payload }));
+  console.log(JSON.stringify({ ts: new Date().toISOString(), eventType, requestId: req?.requestId || null, actorUserId, ip, path, method, ok, ...payload }));
 }
 
 app.set('view engine', 'ejs');
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
-app.use(express.static('public'));
+app.use((req, res, next) => {
+  req.requestId = req.get('x-request-id') || crypto.randomUUID();
+  res.set('x-request-id', req.requestId);
+  next();
+});
+app.use(express.urlencoded({ extended: true, limit: '64kb' }));
+app.use(express.json({ limit: '64kb' }));
+app.use(express.static('public', {
+  etag: true,
+  maxAge: isProd ? '1d' : 0,
+  setHeaders(res, filePath) {
+    if (filePath.includes('/img/') || filePath.includes('/vendor/')) {
+      res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
+    }
+  },
+}));
 app.use((req, res, next) => {
   res.locals.cspNonce = crypto.randomBytes(16).toString('base64');
   res.locals.safeJson = (value) => JSON.stringify(value).replace(/</g, '\\u003c');
@@ -328,6 +294,13 @@ function formatCentral(iso) {
     minute: '2-digit',
     hour12: true,
   }).format(dt) + ' CT';
+}
+
+function publicBaseUrl(req) {
+  const configured = String(process.env.PUBLIC_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (configured) return configured;
+  const proto = req.get('x-forwarded-proto') || req.protocol;
+  return `${proto}://${req.get('host')}`;
 }
 
 function matchHasStarted(match, nowMs = Date.now()) {
@@ -1217,6 +1190,29 @@ function shouldRunFrequentSyncNow() {
 
 app.get('/', (req, res) => (req.session.user ? res.redirect('/dashboard') : res.redirect('/login')));
 
+app.get('/health', (_req, res) => {
+  try {
+    db.prepare('SELECT 1').get();
+    res.set('Cache-Control', 'no-store');
+    return res.json({
+      ok: true,
+      version: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || 'development',
+      uptimeSeconds: Math.floor(process.uptime()),
+    });
+  } catch {
+    return res.status(503).json({ ok: false });
+  }
+});
+
+app.get('/ready', (_req, res) => {
+  try {
+    db.prepare('SELECT 1').get();
+    return res.status(204).end();
+  } catch {
+    return res.status(503).end();
+  }
+});
+
 app.get('/register', (_req, res) => res.render('register', { error: null }));
 app.post('/register', registerLimiter, async (req, res) => {
   const input = parseBody(registerSchema, req.body);
@@ -1596,15 +1592,26 @@ app.get(['/invite/:code', '/join/:code'], (req, res) => {
 
   if (!req.session.user) {
     req.session.pendingInviteCode = inviteCode;
-    const proto = req.get('x-forwarded-proto') || req.protocol;
-    const baseUrl = `${proto}://${req.get('host')}`;
+    const baseUrl = publicBaseUrl(req);
     const inviteUrl = `${baseUrl}/invite/${inviteCode}`;
     const logoPath = competitionLogo(pool.competition_type);
     const ogImage = `${baseUrl}${logoPath}`;
     return res.render('invite-public', { pool, inviteUrl, ogImage, logoPath });
   }
 
+  const baseUrl = publicBaseUrl(req);
+  const inviteUrl = `${baseUrl}/invite/${inviteCode}`;
+  const logoPath = competitionLogo(pool.competition_type);
+  const ogImage = `${baseUrl}${logoPath}`;
+  return res.render('invite-public', { pool, inviteUrl, ogImage, logoPath });
+});
+
+app.post(['/invite/:code', '/join/:code'], auth, (req, res) => {
+  const inviteCode = String(req.params.code || '').trim().toUpperCase();
+  const pool = db.prepare('SELECT * FROM pools WHERE code = ?').get(inviteCode);
+  if (!pool) return res.status(404).send('Invite link not valid.');
   db.prepare('INSERT OR IGNORE INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(pool.id, req.session.user.id);
+  logEvent('pool.join_invite', { poolId: pool.id, poolCode: pool.code }, req, true);
   return res.redirect(`/pools/${pool.id}`);
 });
 
@@ -1620,7 +1627,17 @@ app.get('/pools/:id', auth, (req, res) => {
   const nowMs = Date.now();
   const poolFinished = matches.length > 0 && matches.every((m) => m.status === 'finished');
   const canViewOthersPicks = matches.some((m) => matchHasStarted(m, nowMs));
-  const visibleMatches = matches.filter((m) => !matchHasStarted(m, nowMs)).map((m) => ({
+  const editableMatches = matches.filter((m) => !matchHasStarted(m, nowMs));
+  const predictionRounds = groupPredictionMatches(editableMatches, pool.competition_type || 'liga_mx');
+  const requestedRound = String(req.query.round || '');
+  const selectedPredictionRound = predictionRounds.find((round) => round.key === requestedRound)
+    || predictionRounds.find((round) => round.matches.some((match) => {
+      const lockMs = new Date(match.kickoff_at).getTime() - (15 * 60 * 1000);
+      return Number.isFinite(lockMs) && nowMs < lockMs;
+    }))
+    || predictionRounds[0]
+    || { key: '', label: '', matches: [] };
+  const visibleMatches = selectedPredictionRound.matches.map((m) => ({
     ...m,
     kickoff_local: formatCentral(m.kickoff_at),
   }));
@@ -1636,10 +1653,25 @@ app.get('/pools/:id', auth, (req, res) => {
     ? poolPointsProgression(pool, roundOf32Matches, { startAtFirstMatch: true })
     : null;
   const knockoutCircle = buildWorldCupKnockoutCircle(matches);
-  const proto = req.get('x-forwarded-proto') || req.protocol;
-  const inviteLink = `${proto}://${req.get('host')}/invite/${pool.code}`;
+  const inviteLink = `${publicBaseUrl(req)}/invite/${pool.code}`;
 
-  res.render('pool', { pool, matches: visibleMatches, predByMatch, standings, matchdayStandings, pointsProgression, roundOf32PointsProgression, knockoutCircle, poolFinished, canViewOthersPicks, nowMs, inviteLink, competitionLogo });
+  res.render('pool', {
+    pool,
+    matches: visibleMatches,
+    predictionRounds,
+    selectedPredictionRound,
+    predByMatch,
+    standings,
+    matchdayStandings,
+    pointsProgression,
+    roundOf32PointsProgression,
+    knockoutCircle,
+    poolFinished,
+    canViewOthersPicks,
+    nowMs,
+    inviteLink,
+    competitionLogo,
+  });
 });
 
 app.get('/pools/:id/pronosticos', auth, (req, res) => {
@@ -1978,14 +2010,58 @@ function startBackgroundJobs() {
     const now = Date.now();
     db.prepare('DELETE FROM rate_limits WHERE reset_at < ?').run(now - 5 * 60 * 1000);
     db.prepare('DELETE FROM sessions_store WHERE expires_at < ?').run(now);
+    db.prepare("DELETE FROM audit_events WHERE created_at < datetime('now', '-90 days')").run();
   });
 
   runLoggedSync('startup');
 }
 
+app.use((req, res) => {
+  if (req.accepts('json') && !req.accepts('html')) {
+    return res.status(404).json({ ok: false, error: 'Not found.', requestId: req.requestId });
+  }
+  return res.status(404).send('Not found.');
+});
+
+app.use((error, req, res, _next) => {
+  console.error(JSON.stringify({
+    ts: new Date().toISOString(),
+    eventType: 'request.error',
+    requestId: req.requestId,
+    method: req.method,
+    path: req.path,
+    error: error?.message || String(error),
+  }));
+  if (res.headersSent) return;
+  const status = error?.status === 400 || error?.type === 'entity.parse.failed' ? 400 : 500;
+  if (req.accepts('json') && !req.accepts('html')) {
+    return res.status(status).json({
+      ok: false,
+      error: status === 400 ? 'Invalid request.' : 'Internal server error.',
+      requestId: req.requestId,
+    });
+  }
+  return res.status(status).send(status === 400 ? 'Invalid request.' : 'Internal server error.');
+});
+
+let server;
 if (require.main === module) {
   startBackgroundJobs();
-  app.listen(PORT, () => console.log(`LaKiniela running on http://localhost:${PORT}`));
+  server = app.listen(PORT, () => console.log(`LaKiniela running on http://localhost:${PORT}`));
+  server.requestTimeout = 30_000;
+  server.headersTimeout = 31_000;
+  server.keepAliveTimeout = 5_000;
+
+  const shutdown = (signal) => {
+    console.log(JSON.stringify({ ts: new Date().toISOString(), eventType: 'server.shutdown', signal }));
+    server.close(() => {
+      db.close();
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(1), 10_000).unref();
+  };
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 }
 
 module.exports = { app, runFullSync, reconcileLigaMxPools };

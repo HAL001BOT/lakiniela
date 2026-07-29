@@ -56,6 +56,12 @@ async function login(agent, username) {
 }
 
 async function main() {
+  const health = await request(app).get('/health').expect(200);
+  if (!health.body.ok || health.body.version !== 'development') {
+    throw new Error('Health endpoint did not report application readiness');
+  }
+  await request(app).get('/ready').expect(204);
+
   const owner = request.agent(app);
   await owner.post('/register').type('form').send({
     name: 'No CSRF',
@@ -106,6 +112,18 @@ async function main() {
   });
   await outsider.get(`/pools/${pool.id}`).expect(403);
   await outsider.get('/admin/users').expect(403);
+  const invitePage = await outsider.get(`/invite/${pool.code}`).expect(200);
+  if (db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = (SELECT id FROM users WHERE username = ?)').get(pool.id, 'outsider_user')) {
+    throw new Error('GET invite unexpectedly changed pool membership');
+  }
+  await outsider.post(`/invite/${pool.code}`)
+    .type('form')
+    .send({ _csrf: csrfFrom(invitePage) })
+    .expect(302)
+    .expect('location', `/pools/${pool.id}`);
+  if (!db.prepare('SELECT 1 FROM pool_members WHERE pool_id = ? AND user_id = (SELECT id FROM users WHERE username = ?)').get(pool.id, 'outsider_user')) {
+    throw new Error('POST invite did not add pool membership');
+  }
 
   const refreshedPoolPage = await owner.get(`/pools/${pool.id}`).expect(200);
   await owner.post(`/pools/${pool.id}/predictions/${match.lastInsertRowid}`)
@@ -136,7 +154,7 @@ async function main() {
   }
 
   const batchPoolPage = await owner.get(`/pools/${pool.id}`).expect(200);
-  if (!batchPoolPage.text.includes('Guardar todos') || !batchPoolPage.text.includes('CLASIFICACIÓN DE JORNADA')) {
+  if (!batchPoolPage.text.includes('Guardar jornada') || !batchPoolPage.text.includes('CLASIFICACIÓN DE JORNADA')) {
     throw new Error('Matchday prediction and standings UI is missing');
   }
   await owner.post(`/pools/${pool.id}/predictions`)
@@ -152,6 +170,32 @@ async function main() {
     .get(pool.id, secondMatch.lastInsertRowid);
   if (batchSaved?.pred_home !== 0 || batchSaved?.pred_away !== 0) {
     throw new Error('Batch prediction save did not persist every match');
+  }
+
+  const addFullSeasonFixtures = db.transaction(() => {
+    const insertMatch = db.prepare(`
+      INSERT INTO matches (external_id, league, season, season_key, matchday, home_team, away_team, kickoff_at, status)
+      VALUES (?, 'Liga MX', '2026', '2026:torneo-apertura', ?, ?, ?, ?, 'scheduled')
+    `);
+    const addToPool = db.prepare('INSERT INTO pool_matches (pool_id, match_id) VALUES (?, ?)');
+    for (let matchday = 8; matchday <= 22; matchday += 1) {
+      for (let fixture = 1; fixture <= 8; fixture += 1) {
+        const inserted = insertMatch.run(
+          `espn:full-season-${matchday}-${fixture}`,
+          matchday,
+          `Home ${matchday}-${fixture}`,
+          `Away ${matchday}-${fixture}`,
+          new Date(Date.now() + ((matchday + fixture) * 24 * 60 * 60 * 1000)).toISOString()
+        );
+        addToPool.run(pool.id, inserted.lastInsertRowid);
+      }
+    }
+  });
+  addFullSeasonFixtures();
+  const fullSeasonPage = await owner.get(`/pools/${pool.id}`).expect(200);
+  const renderedPredictionRows = (fullSeasonPage.text.match(/data-match=/g) || []).length;
+  if (!fullSeasonPage.text.includes('round-tabs') || renderedPredictionRows > 20) {
+    throw new Error('Full-season pool must render one jornada at a time');
   }
 
   db.prepare('UPDATE matches SET kickoff_at = ? WHERE id = ?')
