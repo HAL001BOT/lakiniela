@@ -6,6 +6,14 @@ function normalizedTeam(name) {
   return String(name || '').trim().toLowerCase();
 }
 
+function homeTeam(match) {
+  return match?.home_team || match?.home;
+}
+
+function awayTeam(match) {
+  return match?.away_team || match?.away;
+}
+
 function matchKey(match) {
   return match?.id ?? match?.externalId;
 }
@@ -60,8 +68,8 @@ function attachUnassignedMatches(rounds, matches) {
   const maxDistanceMs = 6 * 24 * 60 * 60 * 1000;
 
   for (const match of orderedMatches(matches).filter((candidate) => !assignedIds.has(matchKey(candidate)))) {
-    const home = normalizedTeam(match.home_team);
-    const away = normalizedTeam(match.away_team);
+    const home = normalizedTeam(homeTeam(match));
+    const away = normalizedTeam(awayTeam(match));
     const time = kickoffMs(match);
     const candidates = rounds
       .map((round) => {
@@ -70,8 +78,8 @@ function attachUnassignedMatches(rounds, matches) {
         const last = Math.max(...times);
         const distance = time < first ? first - time : time > last ? time - last : 0;
         const teams = new Set(round.matches.flatMap((item) => [
-          normalizedTeam(item.home_team),
-          normalizedTeam(item.away_team),
+          normalizedTeam(homeTeam(item)),
+          normalizedTeam(awayTeam(item)),
         ]));
         return { round, distance, repeatsTeam: teams.has(home) || teams.has(away) };
       })
@@ -125,8 +133,8 @@ function roundsFromSchedule(matches) {
   const maxGapMs = 6 * 24 * 60 * 60 * 1000;
 
   for (const match of orderedMatches(matches)) {
-    const home = normalizedTeam(match.home_team);
-    const away = normalizedTeam(match.away_team);
+    const home = normalizedTeam(homeTeam(match));
+    const away = normalizedTeam(awayTeam(match));
     if (!home || !away) continue;
 
     const currentKickoff = kickoffMs(match);

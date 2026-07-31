@@ -133,6 +133,22 @@ function main() {
     throw new Error('Missing ESPN week metadata must become sequential numbered matchdays');
   }
 
+  const inferredEspnShape = inferMissingMatchdays([
+    { externalId: 'espn:1', kickoff_at: '2026-07-11T01:00:00Z', home: 'Puebla', away: 'Atlas' },
+    { externalId: 'espn:2', kickoff_at: '2026-07-12T01:00:00Z', home: 'América', away: 'Juárez' },
+    { externalId: 'espn:3', kickoff_at: '2026-07-18T01:00:00Z', home: 'Atlas', away: 'América' },
+    { externalId: 'espn:4', kickoff_at: '2026-07-19T01:00:00Z', home: 'Juárez', away: 'Puebla' },
+    { externalId: 'espn:5', kickoff_at: '2026-07-25T01:00:00Z', home: 'Puebla', away: 'América' },
+    { externalId: 'espn:6', kickoff_at: '2026-07-26T01:00:00Z', home: 'Atlas', away: 'Juárez' },
+  ]);
+  if (
+    inferredEspnShape.filter((match) => match.matchday === 1).length !== 2
+    || inferredEspnShape.filter((match) => match.matchday === 2).length !== 2
+    || inferredEspnShape.filter((match) => match.matchday === 3).length !== 2
+  ) {
+    throw new Error('ESPN-shaped fixtures must become sequential numbered matchdays');
+  }
+
   const smokeDb = require('../db');
   const poolColumns = smokeDb.prepare('PRAGMA table_info(pools)').all().map((column) => column.name);
   if (!poolColumns.includes('current_matchday')) {
