@@ -1075,6 +1075,62 @@ function ensurePoolMatches(pool) {
   return getPoolMatches(pool.id);
 }
 
+function backfillLigaMxPoolPredictions(pool) {
+  if (!pool?.current_season_key) return 0;
+
+  // Older releases created one pool per jornada. Keep each user's saved picks
+  // when those pools are upgraded into a single tournament-wide pool. Existing
+  // picks in the destination always win; among legacy duplicates, use the most
+  // recently updated one.
+  const legacyPredictions = db.prepare(`
+    SELECT
+      source.user_id,
+      source.match_id,
+      source.pred_home,
+      source.pred_away,
+      source.points,
+      source.created_at,
+      source.updated_at
+    FROM predictions source
+    JOIN pools source_pool ON source_pool.id = source.pool_id
+    JOIN pool_members target_member
+      ON target_member.pool_id = ?
+      AND target_member.user_id = source.user_id
+    JOIN pool_matches target_match
+      ON target_match.pool_id = ?
+      AND target_match.match_id = source.match_id
+    JOIN matches m ON m.id = source.match_id
+    WHERE source.pool_id != ?
+      AND source_pool.competition_type = 'liga_mx'
+      AND m.league = 'Liga MX'
+      AND m.season_key = ?
+    ORDER BY datetime(source.updated_at) DESC, source.id DESC
+  `).all(pool.id, pool.id, pool.id, String(pool.current_season_key));
+
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO predictions (
+      pool_id, user_id, match_id, pred_home, pred_away, points, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  let added = 0;
+  const copy = db.transaction((rows) => {
+    for (const prediction of rows) {
+      added += insert.run(
+        pool.id,
+        prediction.user_id,
+        prediction.match_id,
+        prediction.pred_home,
+        prediction.pred_away,
+        prediction.points,
+        prediction.created_at,
+        prediction.updated_at
+      ).changes;
+    }
+  });
+  copy(legacyPredictions);
+  return added;
+}
+
 function reconcileLigaMxPools() {
   const pools = db.prepare("SELECT * FROM pools WHERE competition_type = 'liga_mx'").all();
   let matchesAdded = 0;
@@ -1126,7 +1182,12 @@ function reconcileLigaMxPools() {
     }
   }
 
-  return { pools: pools.length, matchesAdded, matchdaysSet };
+  let predictionsAdded = 0;
+  for (const pool of db.prepare("SELECT * FROM pools WHERE competition_type = 'liga_mx'").all()) {
+    predictionsAdded += backfillLigaMxPoolPredictions(pool);
+  }
+
+  return { pools: pools.length, matchesAdded, matchdaysSet, predictionsAdded };
 }
 
 function appendActiveWorldCupRoundToPools(poolName = null) {

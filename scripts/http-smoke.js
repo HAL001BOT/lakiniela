@@ -153,6 +153,36 @@ async function main() {
     throw new Error('Pool reconciliation mixed seasons with the same matchday');
   }
 
+  const previousPool = db.prepare(`
+    INSERT INTO pools (name, code, owner_id, competition_type, current_matchday, current_season_key)
+    VALUES ('Jornada anterior', 'OLDJ4', ?, 'liga_mx', 6, '2026:torneo-apertura')
+  `).run(pool.owner_id);
+  db.prepare('INSERT INTO pool_members (pool_id, user_id) VALUES (?, ?)').run(previousPool.lastInsertRowid, pool.owner_id);
+  const previousMatch = db.prepare(`
+    INSERT INTO matches (
+      external_id, league, season, season_key, matchday, home_team, away_team,
+      kickoff_at, home_score, away_score, status
+    ) VALUES (?, 'Liga MX', '2026', '2026:torneo-apertura', 6, 'Past Home', 'Past Away', ?, 2, 1, 'finished')
+  `).run('espn:http-smoke-past', new Date(Date.now() - (7 * 24 * 60 * 60 * 1000)).toISOString());
+  db.prepare('INSERT INTO pool_matches (pool_id, match_id) VALUES (?, ?)').run(previousPool.lastInsertRowid, previousMatch.lastInsertRowid);
+  db.prepare(`
+    INSERT INTO predictions (pool_id, user_id, match_id, pred_home, pred_away, points)
+    VALUES (?, ?, ?, 2, 1, 5)
+  `).run(previousPool.lastInsertRowid, pool.owner_id, previousMatch.lastInsertRowid);
+
+  const historicalReconciliation = reconcileLigaMxPools();
+  if (historicalReconciliation.predictionsAdded < 1) {
+    throw new Error('Historical Liga MX predictions were not carried into the tournament pool');
+  }
+  const copiedPrediction = db.prepare(`
+    SELECT pred_home, pred_away, points
+    FROM predictions
+    WHERE pool_id = ? AND user_id = ? AND match_id = ?
+  `).get(pool.id, pool.owner_id, previousMatch.lastInsertRowid);
+  if (copiedPrediction?.pred_home !== 2 || copiedPrediction?.pred_away !== 1 || copiedPrediction?.points !== 5) {
+    throw new Error('Tournament pool did not preserve the player historical result');
+  }
+
   const batchPoolPage = await owner.get(`/pools/${pool.id}`).expect(200);
   if (!batchPoolPage.text.includes('Guardar jornada') || !batchPoolPage.text.includes('CLASIFICACIÓN DE JORNADA')) {
     throw new Error('Matchday prediction and standings UI is missing');
