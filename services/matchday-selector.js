@@ -1,5 +1,8 @@
 function kickoffMs(match) {
-  return new Date(match?.kickoff_at).getTime();
+  // Database rows use snake_case while the ESPN updater normalizes fixtures
+  // with camelCase before persisting them. Support both shapes so missing ESPN
+  // week metadata can be inferred during the sync itself.
+  return new Date(match?.kickoff_at || match?.kickoffAt).getTime();
 }
 
 function normalizedTeam(name) {
