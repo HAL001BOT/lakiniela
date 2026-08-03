@@ -3,7 +3,11 @@
 <main class='grid two'>
 <section class='card' id='standings-card'>
 <div class='standings-head'>
-  <h3>Standings</h3>
+  <div>
+    <p class='eyebrow'>TABLA DE PUNTOS</p>
+    <h3>Clasificación general<% if (pool.competition_type === 'liga_mx') { %> · Liga MX<% } %></h3>
+    <small class='standings-scope'><%= pool.competition_type === 'liga_mx' ? 'Puntos acumulados de todo el torneo' : 'Puntos acumulados de la competencia' %></small>
+  </div>
   <div class='inline standings-actions'>
     <% if (canViewOthersPicks) { %>
       <a class='button-link' href='/pools/<%= pool.id %>/pronosticos'>Pronósticos</a>
@@ -14,6 +18,7 @@
     <button type='button' id='share-standings'>Share snapshot</button>
   </div>
 </div>
+<div class='standings-columns' aria-hidden='true'><span>Posición · Participante</span><span>Puntos</span></div>
 <ol class='standings' id='standings-list'>
 <% standings.forEach((s, i) => { %>
 <li class='<%= i === 0 ? "standing-top" : "" %>' <%= i === 0 ? "style='background:linear-gradient(90deg,rgba(255,215,0,.18),rgba(255,215,0,.04));border:1px solid rgba(255,215,0,.45);border-radius:10px;padding:10px 12px;margin:2px 0 10px;'" : "" %>>
@@ -317,7 +322,7 @@ if (shareBtn && standingsList) {
       shot.className = 'standings-snapshot';
       const head = element('div', 'standings-snapshot-head');
       const heading = element('div');
-      heading.append(element('h2', '', 'Standings'));
+      heading.append(element('h2', '', 'Tabla de puntos'));
       heading.append(element('p', '', `${snapshotPoolName} · Code ${snapshotPoolCode}`));
       const logo = element('img');
       logo.src = snapshotLogo;

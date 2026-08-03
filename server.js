@@ -1364,7 +1364,12 @@ app.get('/dashboard', auth, (req, res) => {
       incomplete_count: incompleteMatches.length,
       editable_count: editableMatches.length,
       next_lock_local: nextLockMs ? formatCentral(new Date(nextLockMs).toISOString()) : null,
-      active_round_label: activeRound?.label || null,
+      // Liga MX pools span the complete tournament. The active matchday is
+      // still used to choose which predictions to edit, but it must not make
+      // the pool look like a separate one-round competition on the dashboard.
+      active_round_label: p.competition_type === 'liga_mx'
+        ? 'Torneo completo'
+        : activeRound?.label || null,
     };
   });
 

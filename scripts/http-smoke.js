@@ -230,6 +230,13 @@ async function main() {
   if (!ownerDashboard.text.includes('TU JORNADA') || !ownerDashboard.text.includes('Mis quinielas')) {
     throw new Error('Action-oriented dashboard UI is missing');
   }
+  if (!ownerDashboard.text.includes('Liga MX · Torneo completo')) {
+    throw new Error('Liga MX pool must be presented as one complete tournament');
+  }
+  const standingsPage = await owner.get(`/pools/${pool.id}`).expect(200);
+  if (!standingsPage.text.includes('TABLA DE PUNTOS') || !standingsPage.text.includes('Puntos acumulados de todo el torneo')) {
+    throw new Error('Liga MX cumulative points table is missing');
+  }
   await owner.post('/logout')
     .type('form')
     .send({ _csrf: csrfFrom(ownerDashboard) })
