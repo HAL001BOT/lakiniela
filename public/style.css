@@ -47,6 +47,7 @@ h1,h2,h3{margin:.2rem 0 .7rem;letter-spacing:.2px}
 .brand-logo.big{width:160px;height:160px;display:block;margin:0 auto 12px;aspect-ratio:1/1}
 
 .grid{display:grid;gap:14px;padding:18px;grid-template-columns:1fr;max-width:1200px;margin:0 auto}
+.grid > *{min-width:0}
 .grid.two{grid-template-columns:360px 1fr}
 
 .card{
@@ -55,6 +56,7 @@ h1,h2,h3{margin:.2rem 0 .7rem;letter-spacing:.2px}
   border-radius:18px;
   padding:16px;
   box-shadow:0 16px 34px rgba(0,0,0,.32), inset 0 1px 0 #ffffff12;
+  min-width:0;
 }
 
 .auth{display:grid;place-items:center;min-height:100vh;padding:16px}
@@ -603,6 +605,20 @@ button:disabled{opacity:.55;cursor:not-allowed}
   .next-action-card{padding:18px}
   .next-action-card h2{font-size:1.5rem}
   .card{border-radius:15px;padding:14px}
+  .grid{width:100%;padding:12px}
+  .standings-head{align-items:flex-start;flex-direction:column}
+  .standings-head > div:first-child{min-width:0;max-width:100%}
+  .standings-head h3{overflow-wrap:anywhere}
+  .standings-actions{width:100%;flex-wrap:wrap}
+  .standings-actions .button-link,.standings-actions button{flex:1 1 auto;min-width:0}
+  .standings-columns{padding-inline:0}
+  .standings{margin-inline:0;padding-left:0;list-style-position:inside}
+  .standings li{gap:8px;min-width:0}
+  .standings li > span{overflow-wrap:anywhere}
+  .standings li > strong{flex:0 0 auto;margin-left:auto}
+  .standing-stats{overflow-wrap:anywhere}
+  .matchday-leaderboard .section-heading{align-items:flex-start;flex-wrap:wrap}
+  .round-progress{white-space:nowrap}
   .pool-grid{grid-template-columns:1fr}
   .mobile-nav{
     position:fixed;left:0;right:0;bottom:0;z-index:30;
