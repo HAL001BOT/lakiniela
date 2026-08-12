@@ -1718,7 +1718,9 @@ app.get('/pools/:id', auth, (req, res) => {
   const roundOf32PointsProgression = roundOf32Matches.length
     ? poolPointsProgression(pool, roundOf32Matches, { startAtFirstMatch: true })
     : null;
-  const knockoutCircle = buildWorldCupKnockoutCircle(matches);
+  const knockoutCircle = pool.competition_type === 'world_cup_2026'
+    ? buildWorldCupKnockoutCircle(matches)
+    : null;
   const inviteLink = `${publicBaseUrl(req)}/invite/${pool.code}`;
 
   res.render('pool', {
