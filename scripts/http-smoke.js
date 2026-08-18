@@ -182,6 +182,17 @@ async function main() {
   if (copiedPrediction?.pred_home !== 2 || copiedPrediction?.pred_away !== 1 || copiedPrediction?.points !== 5) {
     throw new Error('Tournament pool did not preserve the player historical result');
   }
+  db.prepare('UPDATE predictions SET points = 3 WHERE pool_id = ? AND user_id = ? AND match_id = ?')
+    .run(pool.id, pool.owner_id, match.lastInsertRowid);
+  const predictionsDashboard = await owner.get(`/pools/${pool.id}/pronosticos?round=6`).expect(200);
+  if (!predictionsDashboard.text.includes('Puntos jornada')) {
+    throw new Error('Predictions dashboard does not identify matchday points');
+  }
+  if (!/<td class='points-column'><strong>5<\/strong><\/td>\s*<th scope='row' class='user-column'>\s*<a[^>]*>Owner<\/a>/.test(predictionsDashboard.text)) {
+    throw new Error('Predictions dashboard points must only include the selected matchday');
+  }
+  db.prepare('UPDATE predictions SET points = 0 WHERE pool_id = ? AND user_id = ? AND match_id = ?')
+    .run(pool.id, pool.owner_id, match.lastInsertRowid);
 
   const batchPoolPage = await owner.get(`/pools/${pool.id}`).expect(200);
   if (!batchPoolPage.text.includes('Guardar jornada') || !batchPoolPage.text.includes('CLASIFICACIÓN DE JORNADA')) {

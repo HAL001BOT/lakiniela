@@ -1777,19 +1777,27 @@ app.get('/pools/:id/pronosticos', auth, (req, res) => {
   const predictionByUserMatch = new Map(
     predictions.map((prediction) => [`${prediction.user_id}:${prediction.match_id}`, prediction])
   );
+  const roundPointsByUser = new Map();
+  for (const prediction of predictions) {
+    const userId = Number(prediction.user_id);
+    roundPointsByUser.set(userId, (roundPointsByUser.get(userId) || 0) + Number(prediction.points || 0));
+  }
 
-  const rows = standings.map((member) => ({
-    ...member,
-    predictions: selectedRound.matches.map((match) => {
-      const revealPrediction = matchHasStarted(match, nowMs);
-      const prediction = predictionByUserMatch.get(`${member.id}:${match.id}`) || null;
-      return {
-        prediction: revealPrediction ? prediction : null,
-        hidden: !revealPrediction,
-        status: predictionStatus(prediction, match),
-      };
-    }),
-  }));
+  const rows = standings
+    .map((member) => ({
+      ...member,
+      points: roundPointsByUser.get(Number(member.id)) || 0,
+      predictions: selectedRound.matches.map((match) => {
+        const revealPrediction = matchHasStarted(match, nowMs);
+        const prediction = predictionByUserMatch.get(`${member.id}:${match.id}`) || null;
+        return {
+          prediction: revealPrediction ? prediction : null,
+          hidden: !revealPrediction,
+          status: predictionStatus(prediction, match),
+        };
+      }),
+    }))
+    .sort((a, b) => Number(b.points) - Number(a.points) || a.name.localeCompare(b.name));
 
   const roundMatches = selectedRound.matches.map((match) => ({
     ...match,
