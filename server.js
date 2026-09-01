@@ -1407,9 +1407,12 @@ app.get('/dashboard', auth, (req, res) => {
         && Number.isFinite(kickoffMs)
         && nowMs < kickoffMs - (15 * 60 * 1000);
     });
-    const incompleteMatches = editableMatches.filter((match) => !predictionByMatch.has(Number(match.id)));
-    const nextLockMs = editableMatches.length
-      ? Math.min(...editableMatches.map((match) => new Date(match.kickoff_at).getTime() - (15 * 60 * 1000)))
+    const activeMatchday = selectActiveMatchday(poolMatches, { nowMs });
+    const activeMatchIds = new Set(activeMatchday.matches.map((match) => Number(match.id)));
+    const activeEditableMatches = editableMatches.filter((match) => activeMatchIds.has(Number(match.id)));
+    const incompleteMatches = activeEditableMatches.filter((match) => !predictionByMatch.has(Number(match.id)));
+    const nextLockMs = activeEditableMatches.length
+      ? Math.min(...activeEditableMatches.map((match) => new Date(match.kickoff_at).getTime() - (15 * 60 * 1000)))
       : null;
     const rounds = groupPredictionMatches(poolMatches, p.competition_type || 'liga_mx');
     const activeRound = rounds.find((round) => round.matches.some((match) => editableMatches.some((editable) => editable.id === match.id)))

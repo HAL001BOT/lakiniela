@@ -271,9 +271,14 @@ async function main() {
     throw new Error('Rejected batch partially overwrote an unlocked prediction');
   }
 
+  db.prepare('DELETE FROM predictions WHERE pool_id = ? AND user_id = ? AND match_id = ?')
+    .run(pool.id, pool.owner_id, secondMatch.lastInsertRowid);
   const ownerDashboard = await owner.get('/dashboard').expect(200);
   if (!ownerDashboard.text.includes('TU JORNADA') || !ownerDashboard.text.includes('Mis quinielas')) {
     throw new Error('Action-oriented dashboard UI is missing');
+  }
+  if (!ownerDashboard.text.includes('1 pronóstico pendiente') || ownerDashboard.text.includes('120 pronósticos pendientes')) {
+    throw new Error('Dashboard pending count must only include the active matchday');
   }
   if (!ownerDashboard.text.includes('Liga MX · Torneo completo')) {
     throw new Error('Liga MX pool must be presented as one complete tournament');
