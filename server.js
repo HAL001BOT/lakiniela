@@ -283,17 +283,17 @@ function establishUserSession(req, user, done) {
   });
 }
 
-function formatCentral(iso) {
+function formatMonterrey(iso) {
   const dt = new Date(iso);
   if (!Number.isFinite(dt.getTime())) return iso;
   return new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/Chicago',
+    timeZone: 'America/Monterrey',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-  }).format(dt) + ' CT';
+  }).format(dt) + ' MTY';
 }
 
 function publicBaseUrl(req) {
@@ -1424,7 +1424,7 @@ app.get('/dashboard', auth, (req, res) => {
       my_points: myRankIndex >= 0 ? Number(standings[myRankIndex].points || 0) : 0,
       incomplete_count: incompleteMatches.length,
       editable_count: editableMatches.length,
-      next_lock_local: nextLockMs ? formatCentral(new Date(nextLockMs).toISOString()) : null,
+      next_lock_local: nextLockMs ? formatMonterrey(new Date(nextLockMs).toISOString()) : null,
       // Liga MX pools span the complete tournament. The active matchday is
       // still used to choose which predictions to edit, but it must not make
       // the pool look like a separate one-round competition on the dashboard.
@@ -1450,15 +1450,15 @@ app.get('/dashboard', auth, (req, res) => {
   const worldCupView = getUpcomingUniqueScheduledMatches('world_cup_2026');
   const nextMatches = ligaMxView.matches.map((m) => ({
     ...m,
-    kickoff_local: formatCentral(m.kickoff_at),
+    kickoff_local: formatMonterrey(m.kickoff_at),
   }));
   const championsMatches = championsView.matches.map((m) => ({
     ...m,
-    kickoff_local: formatCentral(m.kickoff_at),
+    kickoff_local: formatMonterrey(m.kickoff_at),
   }));
   const worldCupMatches = worldCupView.matches.map((m) => ({
     ...m,
-    kickoff_local: formatCentral(m.kickoff_at),
+    kickoff_local: formatMonterrey(m.kickoff_at),
   }));
   res.render('dashboard', {
     pools,
@@ -1705,7 +1705,7 @@ app.get('/pools/:id', auth, (req, res) => {
     || { key: '', label: '', matches: [] };
   const visibleMatches = selectedPredictionRound.matches.map((m) => ({
     ...m,
-    kickoff_local: formatCentral(m.kickoff_at),
+    kickoff_local: formatMonterrey(m.kickoff_at),
   }));
   const preds = db.prepare('SELECT * FROM predictions WHERE pool_id = ? AND user_id = ?').all(pool.id, req.session.user.id);
   const predByMatch = new Map(preds.map((p) => [p.match_id, p]));
@@ -1758,7 +1758,12 @@ app.get('/pools/:id/pronosticos', auth, (req, res) => {
 
   const rounds = groupPredictionMatches(matches, pool.competition_type || 'liga_mx');
   const requestedRound = String(req.query.round || '');
-  const selectedRound = rounds.find((round) => round.key === requestedRound) || rounds[0] || {
+  const activeMatchday = selectActiveMatchday(matches, { nowMs });
+  const activeMatchIds = new Set(activeMatchday.matches.map((match) => Number(match.id)));
+  const activeRound = rounds.find((round) => (
+    round.matches.some((match) => activeMatchIds.has(Number(match.id)))
+  ));
+  const selectedRound = rounds.find((round) => round.key === requestedRound) || activeRound || rounds[0] || {
     key: '1',
     label: 'Jornada 1',
     matches: [],
@@ -1801,7 +1806,7 @@ app.get('/pools/:id/pronosticos', auth, (req, res) => {
 
   const roundMatches = selectedRound.matches.map((match) => ({
     ...match,
-    kickoff_local: formatCentral(match.kickoff_at),
+    kickoff_local: formatMonterrey(match.kickoff_at),
   }));
 
   res.render('predictions-dashboard', {
@@ -1856,7 +1861,7 @@ app.get('/pools/:id/users/:userId/picks', auth, (req, res) => {
     .filter((m) => targetUserId === req.session.user.id || matchHasStarted(m, nowMs))
     .map((m) => ({
       ...m,
-      kickoff_local: formatCentral(m.kickoff_at),
+      kickoff_local: formatMonterrey(m.kickoff_at),
       pick: pickByMatch.get(m.id) || null,
     }));
 

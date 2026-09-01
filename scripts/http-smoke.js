@@ -191,6 +191,10 @@ async function main() {
   if (!/<td class='points-column'><strong>5<\/strong><\/td>\s*<th scope='row' class='user-column'>\s*<a[^>]*>Owner<\/a>/.test(predictionsDashboard.text)) {
     throw new Error('Predictions dashboard points must only include the selected matchday');
   }
+  const currentPredictionsDashboard = await owner.get(`/pools/${pool.id}/pronosticos`).expect(200);
+  if (!/<option value='7' selected>Jornada 7<\/option>/.test(currentPredictionsDashboard.text)) {
+    throw new Error('Predictions dashboard must open on the current matchday');
+  }
   db.prepare('UPDATE predictions SET points = 0 WHERE pool_id = ? AND user_id = ? AND match_id = ?')
     .run(pool.id, pool.owner_id, match.lastInsertRowid);
 

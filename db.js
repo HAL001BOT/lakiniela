@@ -174,6 +174,10 @@ runMigration('002_seasons_and_sessions', () => {
   addColumn('users', 'session_version INTEGER NOT NULL DEFAULT 1');
 });
 
+runMigration('003_rename_j4_pool', () => {
+  db.prepare("UPDATE pools SET name = 'Apertura 2026' WHERE name = 'J4'").run();
+});
+
 db.exec(`
   CREATE INDEX IF NOT EXISTS idx_matches_schedule
   ON matches(league, season_key, matchday, kickoff_at);
