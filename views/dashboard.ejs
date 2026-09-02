@@ -123,6 +123,10 @@
   <a href='#quinielas'><span>⚽</span>Quinielas</a>
   <% if (isAdmin) { %><a href='/admin/users'><span>⚙</span>Admin</a><% } %>
   <a href='/account/password'><span>●</span>Perfil</a>
+  <form method='post' action='/logout'>
+    <input type='hidden' name='_csrf' value='<%= csrfToken %>'/>
+    <button type='submit'><span>↪</span>Salir</button>
+  </form>
 </nav>
 <script src='/app.js' defer></script>
 </body>
