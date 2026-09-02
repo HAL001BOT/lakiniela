@@ -283,9 +283,15 @@ async function main() {
   if (!ownerDashboard.text.includes('Liga MX · Torneo completo')) {
     throw new Error('Liga MX pool must be presented as one complete tournament');
   }
+  if (!ownerDashboard.text.includes('Jornadas ganadas') || !/Jornadas ganadas<\/small><strong>1<\/strong>/.test(ownerDashboard.text)) {
+    throw new Error('Dashboard must show the total completed matchdays won by the user');
+  }
   const standingsPage = await owner.get(`/pools/${pool.id}`).expect(200);
   if (!standingsPage.text.includes('TABLA DE PUNTOS') || !standingsPage.text.includes('Puntos acumulados de todo el torneo')) {
     throw new Error('Liga MX cumulative points table is missing');
+  }
+  if (!standingsPage.text.includes('Jornadas ganadas 1')) {
+    throw new Error('Pool standings must show each player total matchdays won');
   }
   await owner.post('/logout')
     .type('form')

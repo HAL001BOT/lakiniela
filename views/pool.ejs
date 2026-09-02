@@ -32,6 +32,7 @@
     <small class='standing-stats'>
       Aciertos <%= s.accuracy_pct === null ? '—' : `${s.accuracy_pct}%` %>
       · Exactos <%= s.exact_pct === null ? '—' : `${s.exact_pct}%` %>
+      · Jornadas ganadas <%= s.matchday_wins %>
       <% if (s.finished_picks) { %>
         (<%= s.correct_picks %>/<%= s.finished_picks %> · <%= s.exact_picks %>/<%= s.finished_picks %>)
       <% } %>

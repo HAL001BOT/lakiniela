@@ -372,6 +372,37 @@ function rankRows(rows, scoreKey) {
     .map((row, index) => ({ ...row, rank: index + 1 }));
 }
 
+function poolMatchdayWins(pool, matches) {
+  const winsByUser = new Map();
+  const completedRounds = groupPredictionMatches(matches, pool.competition_type || 'liga_mx')
+    .filter((round) => round.matches.length && round.matches.every((match) => match.status === 'finished'));
+
+  for (const round of completedRounds) {
+    const matchIds = round.matches.map((match) => Number(match.id)).filter(Number.isInteger);
+    if (!matchIds.length) continue;
+    const scores = db.prepare(`
+      SELECT pm.user_id, COALESCE(SUM(pr.points), 0) AS points
+      FROM pool_members pm
+      LEFT JOIN predictions pr
+        ON pr.pool_id = pm.pool_id
+       AND pr.user_id = pm.user_id
+       AND pr.match_id IN (${matchIds.map(() => '?').join(',')})
+      WHERE pm.pool_id = ?
+      GROUP BY pm.user_id
+    `).all(...matchIds, pool.id);
+    if (!scores.length) continue;
+    const topPoints = Math.max(...scores.map((row) => Number(row.points || 0)));
+    scores
+      .filter((row) => Number(row.points || 0) === topPoints)
+      .forEach((row) => {
+        const userId = Number(row.user_id);
+        winsByUser.set(userId, (winsByUser.get(userId) || 0) + 1);
+      });
+  }
+
+  return winsByUser;
+}
+
 function poolMatchdayStandings(pool, matches, nowMs = Date.now()) {
   const rounds = groupPredictionMatches(matches, pool.competition_type || 'liga_mx');
   if (!rounds.length) return null;
@@ -1395,6 +1426,7 @@ app.get('/dashboard', auth, (req, res) => {
     const poolFinished = totalMatches > 0 && finishedMatches === totalMatches;
     const winner = poolFinished ? winnerStmt.get(p.id) : null;
     const standings = poolStandings(p.id);
+    const matchdayWins = poolMatchdayWins(p, poolMatches);
     const myRankIndex = standings.findIndex((row) => Number(row.id) === Number(req.session.user.id));
     const predictionByMatch = new Set(db.prepare(`
       SELECT match_id
@@ -1425,6 +1457,7 @@ app.get('/dashboard', auth, (req, res) => {
       winner_name: winner?.name || null,
       my_rank: myRankIndex >= 0 ? myRankIndex + 1 : null,
       my_points: myRankIndex >= 0 ? Number(standings[myRankIndex].points || 0) : 0,
+      my_matchday_wins: matchdayWins.get(Number(req.session.user.id)) || 0,
       incomplete_count: incompleteMatches.length,
       editable_count: editableMatches.length,
       next_lock_local: nextLockMs ? formatMonterrey(new Date(nextLockMs).toISOString()) : null,
@@ -1713,6 +1746,10 @@ app.get('/pools/:id', auth, (req, res) => {
   const preds = db.prepare('SELECT * FROM predictions WHERE pool_id = ? AND user_id = ?').all(pool.id, req.session.user.id);
   const predByMatch = new Map(preds.map((p) => [p.match_id, p]));
   const standings = poolStandings(pool.id);
+  const matchdayWins = poolMatchdayWins(pool, matches);
+  standings.forEach((row) => {
+    row.matchday_wins = matchdayWins.get(Number(row.id)) || 0;
+  });
   const matchdayStandings = poolMatchdayStandings(pool, matches, nowMs);
   const pointsProgression = poolPointsProgression(pool, matches);
   const roundOf32Matches = pool.competition_type === 'world_cup_2026'

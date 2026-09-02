@@ -86,6 +86,7 @@
           <div class='pool-summary-stats'>
             <span><small>Posición</small><strong><%= p.my_rank ? `#${p.my_rank}` : '—' %></strong></span>
             <span><small>Puntos</small><strong><%= p.my_points %></strong></span>
+            <span><small>Jornadas ganadas</small><strong><%= p.my_matchday_wins %></strong></span>
             <span><small>Pendientes</small><strong class='<%= p.incomplete_count ? "attention" : "" %>'><%= p.incomplete_count %></strong></span>
           </div>
           <% if (p.pool_finished && p.winner_name) { %><span class='pool-winner'>Ganador: <%= p.winner_name %> 👑</span><% } %>
