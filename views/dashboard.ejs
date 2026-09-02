@@ -118,9 +118,10 @@
   </section>
 </main>
 
-<nav class='mobile-nav' aria-label='Navegación principal'>
+<nav class='mobile-nav<%= isAdmin ? " mobile-nav-admin" : "" %>' aria-label='Navegación principal'>
   <a class='is-active' href='#inicio'><span>⌂</span>Inicio</a>
   <a href='#quinielas'><span>⚽</span>Quinielas</a>
+  <% if (isAdmin) { %><a href='/admin/users'><span>⚙</span>Admin</a><% } %>
   <a href='/account/password'><span>●</span>Perfil</a>
 </nav>
 <script src='/app.js' defer></script>

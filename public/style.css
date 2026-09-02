@@ -626,6 +626,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
     padding:7px max(8px,env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));
     border-top:1px solid #31478f;background:rgba(7,14,38,.96);backdrop-filter:blur(15px)
   }
+  .mobile-nav.mobile-nav-admin{grid-template-columns:repeat(4,1fr)}
   .mobile-nav a{display:grid;place-items:center;gap:2px;min-height:49px;color:var(--muted);font-size:.68rem;font-weight:750}
   .mobile-nav a span{font-size:1.1rem}
   .mobile-nav a.is-active{color:var(--accent)}
