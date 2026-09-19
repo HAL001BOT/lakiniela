@@ -14,6 +14,7 @@ const SqliteSessionStore = require('./services/sqlite-session-store');
 const app = express();
 const PORT = process.env.PORT || 3090;
 const isProd = process.env.NODE_ENV === 'production';
+let lastSyncStatus = null;
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
@@ -1294,6 +1295,7 @@ app.get('/health', (_req, res) => {
       ok: true,
       version: process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || 'development',
       uptimeSeconds: Math.floor(process.uptime()),
+      sync: lastSyncStatus,
     });
   } catch {
     return res.status(503).json({ ok: false });
@@ -2109,7 +2111,27 @@ app.post('/admin/sync', async (req, res) => {
 async function runLoggedSync(trigger) {
   try {
     const result = await runFullSync(trigger);
-    if (result.skipped) return;
+    if (result.skipped) {
+      lastSyncStatus = {
+        completedAt: new Date().toISOString(),
+        trigger,
+        ok: false,
+        skipped: true,
+        reason: result.reason,
+      };
+      return result;
+    }
+    lastSyncStatus = {
+      completedAt: new Date().toISOString(),
+      trigger,
+      ok: result.ok,
+      skipped: false,
+      ligaMx: result.ligaMx ? {
+        total: result.ligaMx.total,
+        updated: result.ligaMx.updated,
+        finished: result.ligaMx.finished,
+      } : null,
+    };
     logEvent(`sync.${trigger}.${result.ok ? 'ok' : 'partial'}`, {
       ligaMxUpdated: result.ligaMx?.updated || 0,
       championsUpdated: result.champions?.updated || 0,
@@ -2117,8 +2139,17 @@ async function runLoggedSync(trigger) {
       ligaMxPools: result.ligaMxPools,
       worldCupPools: result.worldCupPools,
     }, null, true);
+    return result;
   } catch (error) {
+    lastSyncStatus = {
+      completedAt: new Date().toISOString(),
+      trigger,
+      ok: false,
+      skipped: false,
+      error: 'sync_failed',
+    };
     logEvent(`sync.${trigger}.failed`, { error: error.message }, null, false);
+    return null;
   }
 }
 
