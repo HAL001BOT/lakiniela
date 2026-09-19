@@ -53,17 +53,38 @@ function recalcPointsForMatch(matchId) {
   }
 }
 
+function mergeMatchRows(keepId, duplicateId) {
+  if (!keepId || !duplicateId || Number(keepId) === Number(duplicateId)) return;
+  db.transaction(() => {
+    db.prepare('UPDATE OR IGNORE predictions SET match_id = ? WHERE match_id = ?').run(keepId, duplicateId);
+    db.prepare('UPDATE OR IGNORE pool_matches SET match_id = ? WHERE match_id = ?').run(keepId, duplicateId);
+    db.prepare('DELETE FROM predictions WHERE match_id = ?').run(duplicateId);
+    db.prepare('DELETE FROM pool_matches WHERE match_id = ?').run(duplicateId);
+    db.prepare('DELETE FROM matches WHERE id = ?').run(duplicateId);
+  })();
+}
+
 function upsertMatch(match) {
   if (!match.home || !match.away || !match.kickoffAt || !match.externalId) return null;
 
-  const existing = db.prepare('SELECT id FROM matches WHERE external_id = ?').get(match.externalId);
+  const externalMatch = db.prepare('SELECT id FROM matches WHERE external_id = ?').get(match.externalId);
+  const fixtureMatch = db.prepare(`
+    SELECT id
+    FROM matches
+    WHERE league = ? AND home_team = ? AND away_team = ? AND kickoff_at = ?
+  `).get(match.league, match.home, match.away, match.kickoffAt);
+  const existing = externalMatch || fixtureMatch;
   if (existing) {
+    if (externalMatch && fixtureMatch && externalMatch.id !== fixtureMatch.id) {
+      mergeMatchRows(externalMatch.id, fixtureMatch.id);
+    }
     db.prepare(`
       UPDATE matches
-      SET league = ?, season = ?, season_key = ?, matchday = ?, home_team = ?, away_team = ?, home_logo = ?, away_logo = ?, kickoff_at = ?,
+      SET external_id = ?, league = ?, season = ?, season_key = ?, matchday = ?, home_team = ?, away_team = ?, home_logo = ?, away_logo = ?, kickoff_at = ?,
           home_score = ?, away_score = ?, home_penalty_score = ?, away_penalty_score = ?, winner_side = ?, status = ?
       WHERE id = ?
     `).run(
+      match.externalId,
       match.league,
       match.season,
       match.seasonKey,
@@ -266,6 +287,7 @@ async function syncWorldCupScores() {
 module.exports = {
   resultPoints,
   recalcPointsForMatch,
+  upsertMatch,
   syncLigaMxScores,
   syncChampionsLeagueScores,
   syncWorldCupScores,

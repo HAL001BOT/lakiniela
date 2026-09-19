@@ -10,6 +10,7 @@ process.env.ADMIN_KEY = 'test-admin-key-at-least-16-characters';
 process.env.NODE_ENV = 'test';
 
 const db = require('../db');
+const { upsertMatch } = require('../services/updater');
 const { app, reconcileLigaMxPools, runFullSync } = require('../server');
 
 function csrfFrom(response) {
@@ -61,6 +62,42 @@ async function main() {
     throw new Error('Health endpoint did not report application readiness');
   }
   await request(app).get('/ready').expect(204);
+
+  const originalKickoff = '2026-09-18T20:00:00Z';
+  const movedKickoff = '2026-09-19T20:00:00Z';
+  const originalCollision = db.prepare(`
+    INSERT INTO matches (external_id, league, season, season_key, matchday, home_team, away_team, kickoff_at, status)
+    VALUES (?, 'Liga MX', '2026', '2026:torneo-apertura', 7, 'Collision Home', 'Collision Away', ?, 'scheduled')
+  `).run('espn:collision', originalKickoff);
+  db.prepare(`
+    INSERT INTO matches (external_id, league, season, season_key, matchday, home_team, away_team, kickoff_at, status)
+    VALUES (?, 'Liga MX', '2026', '2026:torneo-apertura', 7, 'Collision Home', 'Collision Away', ?, 'scheduled')
+  `).run('legacy:collision', movedKickoff);
+  upsertMatch({
+    externalId: 'espn:collision',
+    league: 'Liga MX',
+    season: '2026',
+    seasonKey: '2026:torneo-apertura',
+    matchday: 7,
+    home: 'Collision Home',
+    away: 'Collision Away',
+    kickoffAt: movedKickoff,
+    homeScore: 2,
+    awayScore: 1,
+    homePenaltyScore: null,
+    awayPenaltyScore: null,
+    winnerSide: 'home',
+    status: 'finished',
+  });
+  const collisionRows = db.prepare("SELECT * FROM matches WHERE home_team = 'Collision Home' AND away_team = 'Collision Away'").all();
+  if (
+    collisionRows.length !== 1
+    || collisionRows[0].id !== Number(originalCollision.lastInsertRowid)
+    || collisionRows[0].kickoff_at !== movedKickoff
+    || collisionRows[0].home_score !== 2
+  ) {
+    throw new Error('Moved ESPN fixtures must merge duplicate rows before updating');
+  }
 
   const owner = request.agent(app);
   await owner.post('/register').type('form').send({
