@@ -2131,6 +2131,10 @@ async function runLoggedSync(trigger) {
         updated: result.ligaMx.updated,
         finished: result.ligaMx.finished,
       } : null,
+      errors: result.errors.map(({ competition, error }) => ({
+        competition,
+        error: String(error || 'unknown_error').slice(0, 240),
+      })),
     };
     logEvent(`sync.${trigger}.${result.ok ? 'ok' : 'partial'}`, {
       ligaMxUpdated: result.ligaMx?.updated || 0,
