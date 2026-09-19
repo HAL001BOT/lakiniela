@@ -25,6 +25,10 @@ function main() {
   if (typeof updater.syncWorldCupScores !== 'function') {
     throw new Error('Missing World Cup sync export');
   }
+  const yearQueries = updater.espnYearQueriesForRange('20261220-20270110');
+  if (yearQueries.years.join(',') !== '2026,2027') {
+    throw new Error('ESPN date windows must use supported year queries');
+  }
   const predictionsDashboard = require('../services/predictions-dashboard');
   if (predictionsDashboard.predictionStatus({ pred_home: 2, pred_away: 1 }, { status: 'finished', home_score: 2, away_score: 1 }) !== 'exact') {
     throw new Error('Exact prediction classification failed');
@@ -147,6 +151,38 @@ function main() {
     || inferredEspnShape.filter((match) => match.matchday === 3).length !== 2
   ) {
     throw new Error('ESPN-shaped fixtures must become sequential numbered matchdays');
+  }
+
+  const postponedEspnFixture = inferMissingMatchdays([
+    { externalId: 'espn:106', kickoffAt: '2026-07-01T20:00:00Z', home: 'A', away: 'B', seasonKey: '2026:apertura' },
+    { externalId: 'espn:105', kickoffAt: '2026-07-02T20:00:00Z', home: 'C', away: 'D', seasonKey: '2026:apertura' },
+    { externalId: 'espn:104', kickoffAt: '2026-07-20T20:00:00Z', home: 'A', away: 'C', seasonKey: '2026:apertura' },
+    { externalId: 'espn:103', kickoffAt: '2026-07-09T20:00:00Z', home: 'B', away: 'D', seasonKey: '2026:apertura' },
+    { externalId: 'espn:102', kickoffAt: '2026-07-15T20:00:00Z', home: 'A', away: 'D', seasonKey: '2026:apertura' },
+    { externalId: 'espn:101', kickoffAt: '2026-07-16T20:00:00Z', home: 'B', away: 'C', seasonKey: '2026:apertura' },
+  ]);
+  const postponed = postponedEspnFixture.find((match) => match.externalId === 'espn:104');
+  if (
+    postponed?.matchday !== 2
+    || [1, 2, 3].some((matchday) => postponedEspnFixture.filter((match) => match.matchday === matchday).length !== 2)
+  ) {
+    throw new Error('Postponed ESPN fixtures must stay in their original matchday');
+  }
+
+  const wrappedEspnFixture = inferMissingMatchdays([
+    ...Array.from({ length: 9 }, (_, round) => [
+      { externalId: `espn:${118 - (round * 2)}`, kickoffAt: new Date(Date.UTC(2026, 6, 1 + (round * 7), 20)).toISOString(), home: 'A', away: 'B', seasonKey: '2026:apertura' },
+      { externalId: `espn:${117 - (round * 2)}`, kickoffAt: new Date(Date.UTC(2026, 6, 2 + (round * 7), 20)).toISOString(), home: 'C', away: 'D', seasonKey: '2026:apertura' },
+    ]).flat(),
+    // The final round was allocated later and wrapped ahead of round one.
+    { externalId: 'espn:120', kickoffAt: '2026-09-03T20:00:00Z', home: 'A', away: 'B', seasonKey: '2026:apertura' },
+    { externalId: 'espn:119', kickoffAt: '2026-09-04T20:00:00Z', home: 'C', away: 'D', seasonKey: '2026:apertura' },
+  ]);
+  if (
+    wrappedEspnFixture.find((match) => match.externalId === 'espn:118')?.matchday !== 1
+    || wrappedEspnFixture.find((match) => match.externalId === 'espn:120')?.matchday !== 10
+  ) {
+    throw new Error('Wrapped ESPN event ids must not shift matchday labels');
   }
 
   const smokeDb = require('../db');

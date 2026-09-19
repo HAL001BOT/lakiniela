@@ -31,6 +31,57 @@ function orderedMatches(matches) {
     .sort((a, b) => kickoffMs(a) - kickoffMs(b) || Number(a.id) - Number(b.id));
 }
 
+function espnEventNumber(match) {
+  const externalId = String(match?.external_id || match?.externalId || '');
+  const parsed = externalId.match(/^espn:(?:[^:]+:)*(\d+)$/);
+  return parsed ? Number(parsed[1]) : null;
+}
+
+function roundInferenceOrder(matches) {
+  const ordered = orderedMatches(matches);
+  const withEventNumbers = ordered.map((match) => ({ match, eventNumber: espnEventNumber(match) }));
+  if (withEventNumbers.length < 2 || withEventNumbers.some(({ eventNumber }) => !Number.isSafeInteger(eventNumber))) {
+    return { matches: ordered, source: 'kickoff' };
+  }
+
+  // ESPN no longer includes week.number in its Liga MX scoreboard payload.
+  // Event ids are assigned in fixture-list order and remain stable when a game
+  // is postponed, so use their prevailing direction to recover the original
+  // round order instead of treating the rescheduled kickoff as a new jornada.
+  const kickoffAverage = withEventNumbers.reduce((sum, item) => sum + kickoffMs(item.match), 0) / withEventNumbers.length;
+  const eventAverage = withEventNumbers.reduce((sum, item) => sum + item.eventNumber, 0) / withEventNumbers.length;
+  const covariance = withEventNumbers.reduce((sum, item) => (
+    sum + ((kickoffMs(item.match) - kickoffAverage) * (item.eventNumber - eventAverage))
+  ), 0);
+  const direction = covariance < 0 ? -1 : 1;
+
+  const sourceOrdered = withEventNumbers
+    .sort((a, b) => direction * (a.eventNumber - b.eventNumber))
+    .map(({ match }) => match);
+  let rotationIndex = 0;
+  let largestBackwardGap = 6 * 24 * 60 * 60 * 1000;
+  for (let index = 1; index < sourceOrdered.length; index += 1) {
+    const backwardGap = kickoffMs(sourceOrdered[index - 1]) - kickoffMs(sourceOrdered[index]);
+    if (backwardGap > largestBackwardGap) {
+      largestBackwardGap = backwardGap;
+      rotationIndex = index;
+    }
+  }
+  const earliestKickoff = Math.min(...sourceOrdered.map(kickoffMs));
+  const sourceStartsAfterOpener = kickoffMs(sourceOrdered[0]) - earliestKickoff > (6 * 24 * 60 * 60 * 1000);
+  if (!sourceStartsAfterOpener) rotationIndex = 0;
+
+  return {
+    // ESPN sometimes allocates the final round after the rest of the season,
+    // which wraps its ids ahead of round one. Rotate at the largest backwards
+    // schedule jump so that round numbering still starts with the opener.
+    matches: rotationIndex
+      ? [...sourceOrdered.slice(rotationIndex), ...sourceOrdered.slice(0, rotationIndex)]
+      : sourceOrdered,
+    source: 'espn-event-order',
+  };
+}
+
 function chooseActiveRound(rounds, nowMs) {
   const live = rounds.find((round) => round.matches.some((match) => match.status === 'live'));
   if (live) return live;
@@ -105,17 +156,28 @@ function attachUnassignedMatches(rounds, matches) {
 function inferMissingMatchdays(matches) {
   const ordered = orderedMatches(matches);
   const explicitRounds = roundsFromMatchday(ordered);
-  const rounds = explicitRounds.length
-    ? attachUnassignedMatches(explicitRounds, ordered)
-    : roundsFromSchedule(ordered).map((round, index) => ({
-      ...round,
-      matchday: index + 1,
-      matches: round.matches.map((match) => ({
-        ...match,
+  let rounds;
+  if (explicitRounds.length) {
+    rounds = attachUnassignedMatches(explicitRounds, ordered);
+  } else {
+    const bySeason = new Map();
+    for (const match of ordered) {
+      const key = seasonKey(match);
+      if (!bySeason.has(key)) bySeason.set(key, []);
+      bySeason.get(key).push(match);
+    }
+    rounds = [...bySeason.values()].flatMap((seasonMatches) => (
+      roundsFromSchedule(seasonMatches).map((round, index) => ({
+        ...round,
         matchday: index + 1,
-        inferred_matchday: true,
-      })),
-    }));
+        matches: round.matches.map((match) => ({
+          ...match,
+          matchday: index + 1,
+          inferred_matchday: true,
+        })),
+      }))
+    ));
+  }
   const inferredById = new Map(
     rounds
       .flatMap((round) => round.matches)
@@ -134,17 +196,20 @@ function roundsFromSchedule(matches) {
   let usedTeams = new Set();
   let previousKickoff = null;
   const maxGapMs = 6 * 24 * 60 * 60 * 1000;
+  const inferenceOrder = roundInferenceOrder(matches);
 
-  for (const match of orderedMatches(matches)) {
+  for (const match of inferenceOrder.matches) {
     const home = normalizedTeam(homeTeam(match));
     const away = normalizedTeam(awayTeam(match));
     if (!home || !away) continue;
 
     const currentKickoff = kickoffMs(match);
     const repeatsTeam = usedTeams.has(home) || usedTeams.has(away);
-    const largeGap = previousKickoff !== null && currentKickoff - previousKickoff > maxGapMs;
+    const largeGap = inferenceOrder.source === 'kickoff'
+      && previousKickoff !== null
+      && currentKickoff - previousKickoff > maxGapMs;
     if (current.length && (repeatsTeam || largeGap)) {
-      rounds.push({ matchday: null, matches: current, source: 'schedule' });
+      rounds.push({ matchday: null, matches: orderedMatches(current), source: inferenceOrder.source });
       current = [];
       usedTeams = new Set();
     }
@@ -155,7 +220,7 @@ function roundsFromSchedule(matches) {
     previousKickoff = currentKickoff;
   }
 
-  if (current.length) rounds.push({ matchday: null, matches: current, source: 'schedule' });
+  if (current.length) rounds.push({ matchday: null, matches: orderedMatches(current), source: inferenceOrder.source });
   return rounds;
 }
 

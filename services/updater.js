@@ -7,9 +7,9 @@ const COMPETITIONS = {
     key: 'liga_mx',
     leagueLabel: 'Liga MX',
     espnPath: 'mex.1',
+    fullCalendarYear: true,
     dateLookbackDays: 45,
     dateAheadDays: 150,
-    dateChunkDays: 35,
   },
   CHAMPIONS_LEAGUE: {
     key: 'champions_league',
@@ -116,14 +116,8 @@ function upsertMatch(match) {
   return { created: true, id: info.lastInsertRowid };
 }
 
-async function fetchEspnCompetitionRange(config, dates) {
-  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${config.espnPath}/scoreboard`;
-  const { data } = await axios.get(url, {
-    params: { dates },
-    timeout: 20000,
-  });
-
-  return (data.events || []).map((ev) => {
+function normalizeEspnEvents(config, events) {
+  return (events || []).map((ev) => {
     const comp = ev.competitions?.[0] || {};
     const home = (comp.competitors || []).find((c) => c.homeAway === 'home');
     const away = (comp.competitors || []).find((c) => c.homeAway === 'away');
@@ -170,38 +164,67 @@ async function fetchEspnCompetitionRange(config, dates) {
   });
 }
 
+function parseCompactDate(value) {
+  const match = String(value || '').match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (!match) throw new Error(`Invalid ESPN date: ${value}`);
+  return Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function espnYearQueriesForRange(dates) {
+  const [fromRaw, toRaw = fromRaw] = String(dates || '').split('-');
+  const fromMs = parseCompactDate(fromRaw);
+  const toExclusiveMs = parseCompactDate(toRaw) + (24 * 60 * 60 * 1000);
+  if (toExclusiveMs <= fromMs) throw new Error(`Invalid ESPN date range: ${dates}`);
+
+  const years = [];
+  for (let year = new Date(fromMs).getUTCFullYear(); year <= new Date(toExclusiveMs - 1).getUTCFullYear(); year += 1) {
+    years.push(String(year));
+  }
+  return { fromMs, toExclusiveMs, years };
+}
+
+async function fetchEspnCompetitionRange(config, dates) {
+  const url = `https://site.api.espn.com/apis/site/v2/sports/soccer/${config.espnPath}/scoreboard`;
+  const { fromMs, toExclusiveMs, years } = espnYearQueriesForRange(dates);
+  const byId = new Map();
+
+  // ESPN's scoreboard stopped accepting YYYYMMDD-YYYYMMDD values in 2026.
+  // Year queries still work and include the complete schedule, so fetch each
+  // touched year once and filter locally to the requested date window.
+  for (const year of years) {
+    const { data } = await axios.get(url, {
+      params: { dates: year, limit: 1000 },
+      timeout: 20000,
+    });
+    for (const event of data.events || []) {
+      const kickoff = new Date(event.date).getTime();
+      if (!Number.isFinite(kickoff) || kickoff < fromMs || kickoff >= toExclusiveMs) continue;
+      byId.set(String(event.id), event);
+    }
+  }
+
+  return normalizeEspnEvents(config, [...byId.values()]);
+}
+
 async function fetchEspnCompetition(config) {
   const fmt = (d) => d.toISOString().slice(0, 10).replace(/-/g, '');
 
   if (Array.isArray(config.dateRanges) && config.dateRanges.length) {
-    const byId = new Map();
-    for (const [from, to] of config.dateRanges) {
-      const fixtures = await fetchEspnCompetitionRange(config, `${from}-${to}`);
-      for (const fixture of fixtures) byId.set(fixture.externalId, fixture);
-    }
-    return [...byId.values()].sort((a, b) => new Date(a.kickoffAt) - new Date(b.kickoffAt));
+    const first = config.dateRanges[0][0];
+    const last = config.dateRanges[config.dateRanges.length - 1][1];
+    return fetchEspnCompetitionRange(config, `${first}-${last}`);
   }
 
   const now = new Date();
+  if (config.fullCalendarYear) {
+    const year = now.getUTCFullYear();
+    return fetchEspnCompetitionRange(config, `${year}0101-${year}1231`);
+  }
+
   const from = new Date(now);
   from.setDate(from.getDate() - (config.dateLookbackDays || 7));
   const to = new Date(now);
   to.setDate(to.getDate() + (config.dateAheadDays || 21));
-
-  if (config.dateChunkDays) {
-    const byId = new Map();
-    let cursor = new Date(from);
-    while (cursor <= to) {
-      const chunkEnd = new Date(cursor);
-      chunkEnd.setDate(chunkEnd.getDate() + config.dateChunkDays - 1);
-      if (chunkEnd > to) chunkEnd.setTime(to.getTime());
-      const fixtures = await fetchEspnCompetitionRange(config, `${fmt(cursor)}-${fmt(chunkEnd)}`);
-      for (const fixture of fixtures) byId.set(fixture.externalId, fixture);
-      cursor = new Date(chunkEnd);
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    return [...byId.values()].sort((a, b) => new Date(a.kickoffAt) - new Date(b.kickoffAt));
-  }
 
   return fetchEspnCompetitionRange(config, `${fmt(from)}-${fmt(to)}`);
 }
@@ -246,5 +269,7 @@ module.exports = {
   syncLigaMxScores,
   syncChampionsLeagueScores,
   syncWorldCupScores,
+  fetchEspnCompetitionRange,
+  espnYearQueriesForRange,
   COMPETITIONS,
 };
