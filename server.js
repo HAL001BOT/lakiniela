@@ -1268,7 +1268,11 @@ function shouldRunFrequentSyncNow() {
   `).all();
 
   const now = Date.now();
-  const gameWindowMs = 2.5 * 60 * 60 * 1000; // only poll during the expected live match window
+  // Keep polling well after the expected final whistle. A rolling deploy can
+  // briefly inherit the previous instance's distributed sync lock; the wider
+  // window guarantees the replacement retries instead of staying stale until
+  // the next six-hour schedule refresh.
+  const gameWindowMs = 6 * 60 * 60 * 1000;
   const worldCupRefreshWindowMs = 48 * 60 * 60 * 1000;
 
   return upcoming.some((m) => {
