@@ -75,3 +75,13 @@ Run `npm run test:ui` for an isolated browser test (install Chromium with
 `npx playwright install chromium` if `/usr/bin/chromium` is unavailable).
 Tests use a temporary SQLite database and do not touch production records.
 Set `UI_SCREENSHOTS=/path/to/output` to retain desktop/mobile screenshots.
+
+### Light and dark modes
+
+Use **Modo oscuro / Modo claro** in the header (or at the top of sign-in pages).
+The first visit follows your device preference. An explicit choice is saved in
+this browser's local storage and applies across pages and tabs. It does not modify
+account records or sync between devices. Theme initialization runs before CSS to
+avoid a light flash on dark-mode navigation. Themes still toggle for the current
+page when local storage is unavailable. Standings image exports retain a light,
+print-friendly surface.

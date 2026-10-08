@@ -1,0 +1,29 @@
+.theme-toggle{flex:0 0 auto;min-height:44px;padding:8px 12px;font-size:.78rem;white-space:nowrap;background:#edf3e7;border:1px solid #cad9c4;color:#244b32;box-shadow:none}
+.theme-floating{position:fixed;top:16px;right:16px;z-index:60}.top{flex-wrap:wrap}
+@media(max-width:700px){.top:not(.pool-top):not(.dashboard-top) .theme-toggle{grid-column:1/-1;justify-self:end}.dashboard-top .theme-toggle{margin-left:auto}.pool-top .theme-toggle{margin-left:auto}.theme-floating{top:10px;right:10px}.auth{padding-top:70px}}
+html[data-theme=dark]{color-scheme:dark;--bg:#101a16;--bg2:#101a16;--card:#192720;--card2:#192720;--stroke:#35463a;--border:#35463a;--txt:#e9f0e7;--muted:#b0bdaf;--accent:#a4d68d;--ok:#8cce97;--violet:#a4d68d}
+[data-theme=dark] body{background:var(--bg);color:var(--txt)}
+[data-theme=dark] .top,[data-theme=dark] .card,[data-theme=dark] .auth-card,[data-theme=dark] .prediction,[data-theme=dark] .pool-summary-card,[data-theme=dark] .pool-item,[data-theme=dark] .match-line,[data-theme=dark] .points-user-card,[data-theme=dark] .trend-card,[data-theme=dark] .competition-tabs details,[data-theme=dark] .overview-stats>div{background:var(--card);border-color:var(--stroke);color:var(--txt);box-shadow:none}
+[data-theme=dark] input,[data-theme=dark] select,[data-theme=dark] .score-control input[type=number]{background:#101d16;border-color:#50624f;color:var(--txt)}
+[data-theme=dark] input::placeholder{color:#a4b3a0}[data-theme=dark] :focus-visible{outline-color:#b7e89f}[data-theme=dark] input:focus{border-color:#b7e89f;box-shadow:0 0 0 3px #a4d68d25}
+[data-theme=dark] button,[data-theme=dark] .button-link,[data-theme=dark] .action-button{background:#a4d68d;border-color:#a4d68d;color:#102417}
+[data-theme=dark] .button-secondary,[data-theme=dark] .theme-toggle,[data-theme=dark] .score-control .score-step,[data-theme=dark] .standings-actions button,[data-theme=dark] .standings-actions .button-link{background:#263c2b;border-color:#4c6449;color:#deeed6}
+[data-theme=dark] .next-action-card,[data-theme=dark] .next-action-complete{background:#243b29;border-color:#466343;box-shadow:none}[data-theme=dark] .next-action-card p,[data-theme=dark] .action-kicker,[data-theme=dark] .eyebrow{color:#bed7ad}
+[data-theme=dark] .pool-summary-stats>span,[data-theme=dark] .round-standings li,[data-theme=dark] .round-label,[data-theme=dark] .competition-tabs summary span{background:#243328;color:var(--txt)}
+[data-theme=dark] .badge,[data-theme=dark] .completion-pill,[data-theme=dark] .section-count,[data-theme=dark] .round-progress,[data-theme=dark] .pick-state{background:#28452c;color:#ceebbf;border-color:#45683d}
+[data-theme=dark] .deadline-banner,[data-theme=dark] .pick-state.unsaved{background:#3d331c;color:#f2d493;border-color:#71603a}[data-theme=dark] .attention,[data-theme=dark] .pool-summary-stats .attention{color:#f2d493!important}
+[data-theme=dark] .lock-label{color:#dfc68f}[data-theme=dark] .is-locked .pick-state{background:#303a32;color:#c1c9be}
+[data-theme=dark] .save-all-bar,[data-theme=dark] .mobile-nav{background:#192720f5;border-color:#40543f;box-shadow:none}[data-theme=dark] .mobile-nav a,[data-theme=dark] .mobile-nav button{color:#bdcbbb;background:transparent;border:0}[data-theme=dark] .mobile-nav a.is-active{color:#b5e896}
+[data-theme=dark] .invite-link{background:#101d16;color:#c1ceba}[data-theme=dark] .pool-summary-card:hover{background:#223a29;border-color:#76986a}
+[data-theme=dark] .standings li.standing-top{background:#2d3524!important;border-color:#525c3c!important}[data-theme=dark] .standings li.standing-me{background:#2c442a!important;border-color:#608150!important}
+[data-theme=dark] .leader-badge,[data-theme=dark] .weekly-winner{background:#3b351e!important;color:#ead9a0!important;border-color:#6d6339!important}
+[data-theme=dark] .ranking-tabs button{background:#223428;color:#ccdbc4;border-color:#42593b}[data-theme=dark] .ranking-tabs button[aria-pressed=true],[data-theme=dark] .round-tabs a.is-active{background:#a4d68d;color:#102417;border-color:#a4d68d}
+[data-theme=dark] .trend-plot-bg{fill:#142018}[data-theme=dark] .trend-grid,[data-theme=dark] .trend-axis{stroke:#41513d}[data-theme=dark] .trend-tick,[data-theme=dark] .trend-axis-label{fill:#bcc9b4}
+[data-theme=dark] .prediction-matrix thead th,[data-theme=dark] .prediction-matrix thead .points-column,[data-theme=dark] .prediction-matrix thead .user-column,[data-theme=dark] .prediction-matrix thead .stat-column{background:#30432e;color:var(--txt)}
+[data-theme=dark] .prediction-matrix .points-column,[data-theme=dark] .prediction-matrix .user-column,[data-theme=dark] .prediction-matrix .stat-column,[data-theme=dark] .pick-cell{background:#1c2b20;color:var(--txt)}
+[data-theme=dark] .prediction-matrix td,[data-theme=dark] .prediction-matrix th{border-color:#3b5037}[data-theme=dark] .pick-pending,[data-theme=dark] .pick-empty,[data-theme=dark] .pick-hidden{background:#283b2a;color:#c0ceb8;border-color:#4a6144}[data-theme=dark] .pick-exact{color:#102417}
+[data-theme=dark] .error{background:#462626;color:#ffb7ae;border-color:#955b55}[data-theme=dark] .success{background:#24432f;color:#c6ebce;border-color:#51795a}
+/* The dark-green logo needs a light backing on dark surfaces. */
+[data-theme=dark] .brand-logo{background:#edf5e5;border-radius:50%;padding:3px}
+/* Exported standings remain an intentional, readable light print surface. */
+[data-theme=dark] .standings-snapshot{--txt:#172820;--muted:#52674e;background:#f7f8f3;color:#172820}
