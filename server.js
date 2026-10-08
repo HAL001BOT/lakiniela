@@ -287,7 +287,7 @@ function establishUserSession(req, user, done) {
 function formatMonterrey(iso) {
   const dt = new Date(iso);
   if (!Number.isFinite(dt.getTime())) return iso;
-  return new Intl.DateTimeFormat('en-US', {
+  return new Intl.DateTimeFormat('es-MX', {
     timeZone: 'America/Monterrey',
     month: 'short',
     day: 'numeric',
@@ -1980,7 +1980,7 @@ app.post('/pools/:id/predictions', auth, (req, res) => {
       || Date.now() >= kickoffMs - (15 * 60 * 1000);
   });
   if (invalid) {
-    return res.status(403).json({ ok: false, error: 'One or more predictions are locked. Refresh and try again.' });
+    return res.status(403).json({ ok: false, error: 'Uno o más partidos ya cerraron. Actualiza la página y vuelve a intentarlo.' });
   }
 
   const upsert = db.prepare(`

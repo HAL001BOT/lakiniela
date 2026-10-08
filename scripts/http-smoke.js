@@ -236,7 +236,7 @@ async function main() {
     .run(pool.id, pool.owner_id, match.lastInsertRowid);
 
   const batchPoolPage = await owner.get(`/pools/${pool.id}`).expect(200);
-  if (!batchPoolPage.text.includes('Guardar jornada') || !batchPoolPage.text.includes('CLASIFICACIÓN DE JORNADA')) {
+  if (!batchPoolPage.text.includes('Guardar cambios') || !batchPoolPage.text.includes('CLASIFICACIÓN DE JORNADA')) {
     throw new Error('Matchday prediction and standings UI is missing');
   }
   await owner.post(`/pools/${pool.id}/predictions`)

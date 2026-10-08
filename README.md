@@ -55,3 +55,23 @@ To enable instant Render trigger after push:
 The deploy job fails when either secret is absent or when Render never reaches the
 expected revision. Render auto-deploy should be disabled when the deploy hook is
 used, avoiding duplicate deploys.
+
+## Match-first redesign (October 2026)
+
+The approved soccer-motion logo is `public/img/lakiniela-mark.png`. The light
+forest-green visual system is in `public/redesign.css`, loaded after the legacy
+layout stylesheet. Desktop navigation uses a persistent rail; mobile pool pages
+switch between predictions and standings. General/Jornada ranking controls retain
+both scopes. No database migration or scoring-rule changes are required.
+
+Complete individual score pairs can be saved without filling the entire round.
+Unsaved edits are labelled per match and protected by a browser leave warning.
+One-sided or invalid scores remain unsaved; clearing an existing prediction does
+not delete it. Match deadlines are enforced by the server; the UI also disables
+controls as deadlines pass. Displayed fixture and closing times use Monterrey time.
+
+Run `npm test` for domain, migration, security and HTTP regressions.
+Run `npm run test:ui` for an isolated browser test (install Chromium with
+`npx playwright install chromium` if `/usr/bin/chromium` is unavailable).
+Tests use a temporary SQLite database and do not touch production records.
+Set `UI_SCREENSHOTS=/path/to/output` to retain desktop/mobile screenshots.
