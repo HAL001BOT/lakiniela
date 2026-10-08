@@ -1,12 +1,12 @@
 <!doctype html>
 <html lang='es'>
-<head><script src='/theme.js?v=20261008c'></script>
+<head><script src='/theme.js?v=20261008d'></script>
   <meta charset='utf-8'/>
   <meta name='viewport' content='width=device-width,initial-scale=1'/>
   <title>Pronósticos · <%= pool.name %></title>
   <link rel='icon' href='/img/lakiniela-mark.png'/>
   <link rel='stylesheet' href='/style.css?v=20260618pronosticos2'/>
-<link rel='stylesheet' href='/redesign.css?v=20261008c'/><link rel='stylesheet' href='/theme.css?v=20261008c'/></head>
+<link rel='stylesheet' href='/redesign.css?v=20261008d'/><link rel='stylesheet' href='/theme.css?v=20261008d'/><link rel='stylesheet' href='/profile.css?v=20261008d'/></head>
 <body>
   <header class='top'>
     <a href='/pools/<%= pool.id %>'>← Volver al pool</a>
@@ -38,6 +38,7 @@
         <% } %>
       </div>
 
+      <p class='muted'>Aciertos y exactos: solo pronósticos de partidos finalizados en la jornada seleccionada.</p>
       <div class='prediction-legend' aria-label='Leyenda'>
         <span><i class='legend-swatch legend-exact'></i> Marcador exacto</span>
         <span><i class='legend-swatch legend-result'></i> Resultado correcto</span>
@@ -82,7 +83,7 @@
                 <tr>
                   <td class='points-column'><strong><%= member.points %></strong></td>
                   <th scope='row' class='user-column'>
-                    <a href='/pools/<%= pool.id %>/users/<%= member.id %>/picks'><%= member.name %></a>
+                    <img class='user-avatar' src='/users/<%= member.id %>/avatar' alt='' loading='lazy'/><a href='/pools/<%= pool.id %>/users/<%= member.id %>/picks'><%= member.name %></a>
                     <% if (index === 0) { %><span class='matrix-leader' aria-label='Líder'>👑</span><% } %>
                   </th>
                   <td class='stat-column'>
@@ -117,6 +118,6 @@
     </section>
   </main>
 
-  <script src='/app.js' defer></script>
+  <script src='/app.js?v=20261008d' defer></script>
 </body>
 </html>

@@ -1,0 +1,14 @@
+<!doctype html><html lang='es'><head><script src='/theme.js?v=20261008d'></script><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title>Mi perfil · LaKiniela</title><link rel='icon' href='/img/lakiniela-mark.png'/><link rel='stylesheet' href='/style.css'/><link rel='stylesheet' href='/redesign.css?v=20261008d'/><link rel='stylesheet' href='/theme.css?v=20261008d'/><link rel='stylesheet' href='/profile.css?v=20261008d'/></head><body>
+<header class='top'><a href='/dashboard'>← Inicio</a><div class='brand'><img class='brand-logo' src='/img/lakiniela-mark.png' alt='LaKiniela'/><h1>Mi perfil</h1></div></header>
+<main class='grid'><section class='card profile-card'>
+<p class='eyebrow'>TU CUENTA</p><h2><%= user.name %></h2><p class='muted'>@<%= user.username %></p>
+<img id='profile-avatar' class='profile-avatar' src='/users/<%= user.id %>/avatar' alt='Tu foto de perfil'/>
+<form id='avatar-form' data-user-id='<%= user.id %>'>
+<input type='hidden' name='_csrf' value='<%= csrfToken %>'/>
+<label for='avatar-file'>Foto de perfil</label><input id='avatar-file' type='file' accept='image/jpeg,image/png,image/webp,image/avif' required aria-describedby='avatar-help'/>
+<p id='avatar-help' class='muted'>JPG, PNG, WebP o AVIF · Máximo 5 MB. Se recorta al centro en formato cuadrado. La foto será visible para otros usuarios en las tablas.</p>
+<div class='profile-actions'><button type='submit' id='avatar-save'>Guardar foto</button><button type='button' id='avatar-remove' class='button-secondary' <%= hasPhoto ? '' : 'hidden' %>>Quitar foto</button></div>
+<p id='avatar-status' role='status' aria-live='polite'></p>
+</form>
+<a href='/account/password'>Cambiar contraseña →</a>
+</section></main><script src='/app.js?v=20261008d' defer></script><script src='/profile.js?v=20261008d' defer></script></body></html>

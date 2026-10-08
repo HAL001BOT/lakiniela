@@ -1,4 +1,4 @@
-<!doctype html><html lang='es'><head><script src='/theme.js?v=20261008c'></script><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · LaKiniela</title><link rel='icon' href='/img/lakiniela-mark.png'/><link rel='stylesheet' href='/style.css?v=20260803mobile-standings'/><link rel='stylesheet' href='/redesign.css?v=20261008c'/><link rel='stylesheet' href='/theme.css?v=20261008c'/></head><body class='has-mobile-nav pool-page'>
+<!doctype html><html lang='es'><head><script src='/theme.js?v=20261008d'></script><meta charset='utf-8'/><meta name='viewport' content='width=device-width,initial-scale=1'/><title><%= pool.name %> · LaKiniela</title><link rel='icon' href='/img/lakiniela-mark.png'/><link rel='stylesheet' href='/style.css?v=20260803mobile-standings'/><link rel='stylesheet' href='/redesign.css?v=20261008d'/><link rel='stylesheet' href='/theme.css?v=20261008d'/><link rel='stylesheet' href='/profile.css?v=20261008d'/></head><body class='has-mobile-nav pool-page'>
 <header class='top pool-top'><a href='/dashboard'>← Inicio</a><div class='brand'><img class='brand-logo' src='/img/lakiniela-mark.png' alt='LaKiniela'/><h1><%= pool.name %></h1></div><span class='badge'>Código: <%= pool.code %></span></header>
 <main class='grid two pool-workspace'>
 <section class='pool-intro'><p class='eyebrow'>LAKINIELA · <%= selectedPredictionRound.label %></p><h1>Juega tu jornada.</h1><p class='muted'><%= pool.name %> · Pronostica, compite y disfruta el fútbol.</p>
@@ -99,6 +99,7 @@
 <% standings.forEach((s, i) => { %>
 <li class='<%= Number(s.id) === Number(user.id) ? "standing-me" : i === 0 ? "standing-top" : "" %>' <%= i === 0 ? "style='background:linear-gradient(90deg,rgba(255,215,0,.18),rgba(255,215,0,.04));border:1px solid rgba(255,215,0,.45);border-radius:10px;padding:10px 12px;margin:2px 0 10px;'" : "" %>>
   <span>
+    <img class='user-avatar' src='/users/<%= s.id %>/avatar' alt='' loading='lazy'/>
     <% if (canViewOthersPicks) { %>
       <a href='/pools/<%= pool.id %>/users/<%= s.id %>/picks'><%= s.name %></a>
     <% } else { %>
@@ -134,7 +135,7 @@
     <% matchdayStandings.rows.forEach((s, index) => { %>
       <li>
         <span class='round-rank'>#<%= index + 1 %></span>
-        <span class='round-player'><strong><%= s.name %></strong><small>General #<%= s.overall_rank %></small></span>
+        <span class='round-player'><img class='user-avatar' src='/users/<%= s.id %>/avatar' alt='' loading='lazy'/><strong><%= s.name %></strong><small>General #<%= s.overall_rank %></small></span>
         <span class='rank-movement <%= s.rank_change > 0 ? "rank-up" : s.rank_change < 0 ? "rank-down" : "" %>'>
           <%= s.rank_change > 0 ? `↑${s.rank_change}` : s.rank_change < 0 ? `↓${Math.abs(s.rank_change)}` : '—' %>
         </span>
@@ -213,7 +214,7 @@
   <a class='is-active' data-pool-tab='predicciones' href='#predicciones'><span>✓</span>Pronósticos</a>
   <a data-pool-tab='standings-card' href='#standings-card'><span>🏆</span>Tabla</a>
 </nav>
-<script src='/app.js' defer></script>
+<script src='/app.js?v=20261008d' defer></script>
 <script src='/vendor/html2canvas.min.js' defer></script>
 <script nonce="<%= cspNonce %>">
 const csrfToken = <%- safeJson(csrfToken) %>;

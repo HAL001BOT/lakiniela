@@ -93,3 +93,18 @@ primary actions, and pale-blue links for dark-mode readability. Light mode uses
 cool neutral surfaces with cobalt accents. The approved soccer mark is displayed
 in monochrome via CSS; its original image file is preserved. Existing saved theme
 choices and the device-preference default are unchanged.
+
+### Profile photos and round-specific statistics
+
+Open **Perfil** → **Foto de perfil** to upload, replace or remove your own photo.
+Accepted inputs: JPEG, PNG, WebP, AVIF, up to 5 MB and 25 megapixels. The server
+normalizes orientation, center-crops to 256×256 WebP and removes metadata. Images
+are stored in the additive `user_avatars` SQLite table on the existing persistent
+disk; they survive deployments and are included in database backups. Only signed-in
+users can retrieve avatars. No-photo users get a local silhouette placeholder.
+
+In the predictions matrix, Aciertos/Exactos percentages and counts use only
+finished matches with known scores and a prediction in the selected round. Missing
+predictions and unplayed matches are not in the denominator; no qualifying picks
+shows “—”. Correct-result counts include exact scores. The overall pool standings
+retain their all-round statistics.

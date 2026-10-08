@@ -20,18 +20,26 @@ await rows.nth(1).locator('.ph').fill('3');assert.equal(await page.locator('#sav
 // Finish saving to avoid a beforeunload prompt while checking the routes.
 await page.locator('#save-all').click();await page.getByText('Pronósticos guardados ✓',{exact:true}).waitFor();
 const artifacts=process.env.UI_SCREENSHOTS; if(artifacts){fs.mkdirSync(artifacts,{recursive:true});await page.screenshot({path:path.join(artifacts,'desktop.png'),fullPage:true})}
-for(const width of [390,768,1440]){await page.setViewportSize({width,height:900});for(const route of ['/dashboard',`/pools/${pool}`,`/pools/${pool}/pronosticos`,'/account/password','/admin/users']){await page.goto(base+route);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`Overflow ${width} ${route}`)} }
+for(const width of [390,768,1440]){await page.setViewportSize({width,height:900});for(const route of ['/dashboard',`/pools/${pool}`,`/pools/${pool}/pronosticos`,'/account/profile','/account/password','/admin/users']){await page.goto(base+route);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`Overflow ${width} ${route}`)} }
 // Theme toggle is shared across authenticated and public screens and persists on navigation.
 await page.goto(base+`/pools/${pool}`);await page.locator('#theme-toggle').click();
 assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
 await page.reload();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
-for(const width of [390,768,1440]){await page.setViewportSize({width,height:900});for(const route of ['/dashboard',`/pools/${pool}`,`/pools/${pool}/pronosticos`,'/account/password','/admin/users','/login','/register']){await page.goto(base+route);assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`Dark overflow ${width} ${route}`);assert.equal(await page.locator('#theme-toggle').isVisible(),true)}}
+for(const width of [390,768,1440]){await page.setViewportSize({width,height:900});for(const route of ['/dashboard',`/pools/${pool}`,`/pools/${pool}/pronosticos`,'/account/profile','/account/password','/admin/users','/login','/register']){await page.goto(base+route);assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),`Dark overflow ${width} ${route}`);assert.equal(await page.locator('#theme-toggle').isVisible(),true)}}
 await page.goto(base+`/pools/${pool}`);if(artifacts)await page.screenshot({path:path.join(artifacts,'dark-desktop.png'),fullPage:true});
 await page.setViewportSize({width:390,height:844});if(artifacts)await page.screenshot({path:path.join(artifacts,'dark-mobile.png'),fullPage:true});
 await page.locator('#theme-toggle').click();await page.reload();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
 const automatic=await browser.newContext({colorScheme:'dark'});const fresh=await automatic.newPage();await fresh.goto(base+'/login');assert.equal(await fresh.locator('html').getAttribute('data-theme'),'dark');await fresh.emulateMedia({colorScheme:'light'});await fresh.waitForFunction(()=>document.documentElement.dataset.theme==='light');assert.equal(await fresh.locator('html').getAttribute('data-theme'),'light');await automatic.close();
 await page.setViewportSize({width:390,height:844});await page.goto(base+`/pools/${pool}`);assert.equal(await page.locator('#standings-card').isVisible(),false);await page.locator('[data-pool-tab=standings-card]').click();assert.equal(await page.locator('#standings-card').isVisible(),true);assert.equal(await page.locator('#predicciones').isVisible(),false);await page.locator('[data-pool-tab=predicciones]').click();assert.equal(await page.locator('#predicciones').isVisible(),true);
 if(artifacts)await page.screenshot({path:path.join(artifacts,'mobile.png'),fullPage:true});
+await page.goto(base+'/account/profile');
+const avatarInput=await require('sharp')({create:{width:320,height:180,channels:3,background:'#4169ff'}}).png().toBuffer();
+await page.locator('#avatar-file').setInputFiles({name:'photo.png',mimeType:'image/png',buffer:avatarInput});
+await page.locator('#avatar-save').click();await page.getByText('Foto de perfil guardada.',{exact:true}).waitFor();
+assert.ok(db.prepare('SELECT 1 FROM user_avatars WHERE user_id=?').get(owner));await page.reload();assert.equal(await page.locator('#avatar-remove').isVisible(),true);
+if(artifacts)await page.screenshot({path:path.join(artifacts,'profile-mobile.png'),fullPage:true});
+page.once('dialog',dialog=>dialog.accept());await page.locator('#avatar-remove').click();await page.getByText('Foto eliminada.',{exact:true}).waitFor();
+assert.equal(db.prepare('SELECT count(*) n FROM user_avatars').get().n,0);await page.goto(base+`/pools/${pool}`);
 await page.locator('[data-pool-tab=standings-card]').click();await page.getByRole('button',{name:'Jornada',exact:true}).click();assert.equal(await page.locator('.matchday-leaderboard').isVisible(),true);await page.getByRole('button',{name:'General',exact:true}).click();assert.equal(await page.locator('.standings').isVisible(),true);
 await page.locator('[data-pool-tab=predicciones]').click();
 await page.locator('.prediction').nth(2).locator('.ph').fill('1');await page.locator('.prediction').nth(2).locator('.pa').fill('0');

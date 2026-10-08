@@ -303,4 +303,11 @@ if (!countMatches) {
   ].forEach((m) => seed.run(...m));
 }
 
+// Additive, idempotent migration: photos live on the same persistent disk as users.
+db.exec(`CREATE TABLE IF NOT EXISTS user_avatars (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  image BLOB NOT NULL,
+  version TEXT NOT NULL
+)`);
+
 module.exports = db;

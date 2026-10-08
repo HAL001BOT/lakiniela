@@ -311,7 +311,12 @@ function matchHasStarted(match, nowMs = Date.now()) {
   return Number.isFinite(kickoffMs) && nowMs >= kickoffMs;
 }
 
-function poolStandings(poolId) {
+function poolStandings(poolId, matchIds = null) {
+  // Filter the prediction join, not the member rows, so members without picks
+  // remain visible. null means whole pool; [] means an empty selected round.
+  const matchFilter = matchIds === null ? '' : matchIds.length
+    ? ` AND p.match_id IN (${matchIds.map(() => '?').join(',')})`
+    : ' AND 0';
   const rows = db.prepare(`
     SELECT
       u.id,
@@ -345,12 +350,12 @@ function poolStandings(poolId) {
       END) exact_picks
     FROM pool_members pm
     JOIN users u ON u.id = pm.user_id
-    LEFT JOIN predictions p ON p.pool_id = pm.pool_id AND p.user_id = pm.user_id
+    LEFT JOIN predictions p ON p.pool_id = pm.pool_id AND p.user_id = pm.user_id${matchFilter}
     LEFT JOIN matches m ON m.id = p.match_id
     WHERE pm.pool_id = ?
     GROUP BY u.id
     ORDER BY points DESC, picks DESC, u.name ASC
-  `).all(poolId);
+  `).all(...(matchIds || []), poolId);
 
   return rows.map((row) => {
     const finishedPicks = Number(row.finished_picks || 0);
@@ -1370,6 +1375,8 @@ app.post('/login', loginLimiter, async (req, res) => {
 
 app.post('/logout', auth, (req, res) => req.session.destroy(() => res.redirect('/login')));
 
+app.use(require('./services/profile')(db, auth));
+
 app.get('/account/password', auth, (req, res) => {
   res.render('change-password', { error: null, ok: false });
 });
@@ -1816,7 +1823,7 @@ app.get('/pools/:id/pronosticos', auth, (req, res) => {
   };
   const selectedMatchIds = selectedRound.matches.map((match) => match.id);
 
-  const standings = poolStandings(pool.id);
+  const standings = poolStandings(pool.id, selectedMatchIds);
   const predictions = selectedMatchIds.length
     ? db.prepare(`
       SELECT *

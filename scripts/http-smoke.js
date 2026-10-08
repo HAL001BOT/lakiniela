@@ -225,9 +225,35 @@ async function main() {
   if (!predictionsDashboard.text.includes('Puntos jornada')) {
     throw new Error('Predictions dashboard does not identify matchday points');
   }
-  if (!/<td class='points-column'><strong>5<\/strong><\/td>\s*<th scope='row' class='user-column'>\s*<a[^>]*>Owner<\/a>/.test(predictionsDashboard.text)) {
+  if (!/<td class='points-column'><strong>5<\/strong><\/td>\s*<th scope='row' class='user-column'>\s*(?:<img[^>]*>\s*)?<a[^>]*>Owner<\/a>/.test(predictionsDashboard.text)) {
     throw new Error('Predictions dashboard points must only include the selected matchday');
   }
+  // A finished miss in round 7 must not dilute the exact hit in round 6.
+  const beforeStatsMatch = db.prepare('SELECT * FROM matches WHERE id = ?').get(match.lastInsertRowid);
+  db.prepare("UPDATE matches SET status = 'finished', home_score = 0, away_score = 1 WHERE id = ?").run(match.lastInsertRowid);
+  // A scheduled prediction must not enter the finished-pick denominator.
+  db.prepare('INSERT INTO predictions(pool_id,user_id,match_id,pred_home,pred_away) VALUES(?,?,?,?,?)')
+    .run(pool.id,pool.owner_id,secondMatch.lastInsertRowid,1,1);
+  function statsFor(html, name) {
+    const row = html.split('<tr>').find(part => part.includes(`>${name}</a>`));
+    if (!row) throw new Error(`Missing member row: ${name}`);
+    return [...row.matchAll(/<td class='stat-column'>\s*<strong>([^<]+)<\/strong>\s*(?:<small>([^<]+)<\/small>)?/g)]
+      .map(m => [m[1],m[2] || null]);
+  }
+  const roundSixStats = await owner.get(`/pools/${pool.id}/pronosticos?round=6`).expect(200);
+  const roundSevenStats = await owner.get(`/pools/${pool.id}/pronosticos?round=7`).expect(200);
+  if (JSON.stringify(statsFor(roundSixStats.text,'Owner')) !== JSON.stringify([['100%','1/1'],['100%','1/1']])) {
+    throw new Error('Historical round accuracy/exact must exclude other rounds');
+  }
+  if (JSON.stringify(statsFor(roundSevenStats.text,'Owner')) !== JSON.stringify([['0%','0/1'],['0%','0/1']])) {
+    throw new Error('Selected round must count misses but exclude scheduled picks');
+  }
+  if (JSON.stringify(statsFor(roundSixStats.text,'Outsider')) !== JSON.stringify([['—',null],['—',null]])) {
+    throw new Error('Members with no finished picks must show unavailable stats, not pool totals');
+  }
+  db.prepare('DELETE FROM predictions WHERE pool_id=? AND user_id=? AND match_id=?').run(pool.id,pool.owner_id,secondMatch.lastInsertRowid);
+  db.prepare('UPDATE matches SET status=?,home_score=?,away_score=? WHERE id=?')
+    .run(beforeStatsMatch.status,beforeStatsMatch.home_score,beforeStatsMatch.away_score,match.lastInsertRowid);
   const currentPredictionsDashboard = await owner.get(`/pools/${pool.id}/pronosticos`).expect(200);
   if (!/<option value='7' selected>Jornada 7<\/option>/.test(currentPredictionsDashboard.text)) {
     throw new Error('Predictions dashboard must open on the current matchday');

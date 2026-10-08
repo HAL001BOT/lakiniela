@@ -40,7 +40,7 @@ if (document.querySelector('header.top') && !document.body.classList.contains('k
   const poolMatch = location.pathname.match(/^\/pools\/(\d+)/);
   const links=[['Inicio','/dashboard'],['Mis quinielas','/dashboard#quinielas']];
   if(poolMatch) links.push(['Pronósticos',`/pools/${poolMatch[1]}#predicciones`],['Clasificación',`/pools/${poolMatch[1]}#standings-card`]);
-  links.push(['Perfil','/account/password']);
+  links.push(['Perfil','/account/profile']);
   links.forEach(([label,href])=>{const a=document.createElement('a');a.href=href;a.textContent=label;rail.append(a)});
   document.body.prepend(rail);document.body.classList.add('with-rail');
 }
