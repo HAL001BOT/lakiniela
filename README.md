@@ -85,3 +85,11 @@ account records or sync between devices. Theme initialization runs before CSS to
 avoid a light flash on dark-mode navigation. Themes still toggle for the current
 page when local storage is unavailable. Standings image exports retain a light,
 print-friendly surface.
+
+### Graphite / Cobalt palette
+
+Direction A replaces the green scheme: graphite surfaces, white text, cobalt
+primary actions, and pale-blue links for dark-mode readability. Light mode uses
+cool neutral surfaces with cobalt accents. The approved soccer mark is displayed
+in monochrome via CSS; its original image file is preserved. Existing saved theme
+choices and the device-preference default are unchanged.
