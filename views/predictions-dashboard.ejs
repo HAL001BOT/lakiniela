@@ -86,7 +86,7 @@
                   <td class='points-column'><strong><%= member.points %></strong></td>
                   <th scope='row' class='user-column'>
                     <img class='user-avatar' src='/users/<%= member.id %>/avatar' alt='' loading='lazy'/><a href='/pools/<%= pool.id %>/users/<%= member.id %>/picks'><%= member.name %></a>
-                    <small class='ranking-position'><%= member.rank ? `#${member.rank}${member.tied ? ' · Empate perfecto' : ''}` : 'Sin evaluar' %></small><% if (member.leader) { %><span class='matrix-leader' aria-label='<%= roundComplete ? (member.tied ? "Victoria compartida" : "Ganador") : (member.tied ? "Liderato compartido provisional" : "Líder provisional") %>'>👑 <%= roundComplete ? (member.tied ? 'Victoria compartida' : 'Ganador') : (member.tied ? 'Liderato compartido' : 'Líder provisional') %></span><% } %>
+                    <small class='ranking-position'><%= member.rank ? `#${member.rank}` : '—' %></small><% if (member.leader) { %><span class='matrix-leader' aria-label='<%= roundComplete ? (member.tied ? "Victoria compartida" : "Ganador") : (member.tied ? "Liderato compartido provisional" : "Líder provisional") %>'><%= member.tied ? 'Empate ' : '' %>👑</span><% } %>
                   </th>
                   <td class='stat-column'>
                     <strong><%= member.accuracy_pct === null ? '—' : `${member.accuracy_pct}%` %></strong>
