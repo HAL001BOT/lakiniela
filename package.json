@@ -4,14 +4,15 @@
   "description": "LaKiniela - Liga MX pool fantasy app",
   "main": "index.js",
   "scripts": {
-    "test": "npm run smoke && npm run test:migrations && npm run test:http && npm run test:profile",
+    "test": "npm run smoke && npm run test:migrations && npm run test:http && npm run test:profile && npm run test:ranking",
     "smoke": "node scripts/smoke.js",
     "test:migrations": "node scripts/migration-smoke.js",
     "test:http": "node scripts/http-smoke.js",
     "start": "node server.js",
     "dev": "node server.js",
     "test:ui": "node scripts/redesign-browser.js",
-    "test:profile": "node scripts/profile-smoke.js"
+    "test:profile": "node scripts/profile-smoke.js",
+    "test:ranking": "node scripts/ranking-smoke.js"
   },
   "keywords": [],
   "author": "",

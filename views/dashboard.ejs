@@ -6,7 +6,7 @@
   <title>Inicio · LaKiniela</title>
   <link rel='icon' href='/img/lakiniela-mark.png'/>
   <link rel='stylesheet' href='/style.css?v=20260725matchday1'/>
-<link rel='stylesheet' href='/redesign.css?v=20261008d'/><link rel='stylesheet' href='/theme.css?v=20261008d'/><link rel='stylesheet' href='/profile.css?v=20261008d'/></head>
+<link rel='stylesheet' href='/redesign.css?v=20261008d'/><link rel='stylesheet' href='/theme.css?v=20261008d'/><link rel='stylesheet' href='/profile.css?v=20261011ties'/></head>
 <body class='has-mobile-nav'>
 <header class='top dashboard-top'>
   <div class='brand'><img class='brand-logo' src='/img/lakiniela-mark.png' alt='LaKiniela'/></div>
@@ -89,7 +89,7 @@
             <span><small>Jornadas ganadas</small><strong><%= p.my_matchday_wins %></strong></span>
             <span><small>Pendientes</small><strong class='<%= p.incomplete_count ? "attention" : "" %>'><%= p.incomplete_count %></strong></span>
           </div>
-          <% if (p.pool_finished && p.winner_name) { %><span class='pool-winner'>Ganador: <%= p.winner_name %> 👑</span><% } %>
+          <% if (p.pool_finished && p.winner_name) { %><span class='pool-winner'>Ganador(es): <%= p.winner_name %> 👑</span><% } %>
         </a>
       <% }) %>
       <% if (!pools.length) { %><p class='muted'>Todavía no tienes quinielas.</p><% } %>

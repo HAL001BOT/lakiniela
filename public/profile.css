@@ -1,3 +1,7 @@
 .user-avatar{width:30px;height:30px;object-fit:cover;border-radius:50%;vertical-align:middle;margin-right:7px;display:inline-block;flex-shrink:0}.prediction-matrix .user-column .user-avatar{width:26px;height:26px}.prediction-matrix .user-column a{display:inline!important;white-space:normal;overflow-wrap:anywhere}.round-player{display:block}.profile-avatar{display:block;width:128px;height:128px;object-fit:cover;border-radius:50%;margin:22px 0;border:2px solid var(--stroke)}.profile-card{width:100%;max-width:640px;justify-self:center}.profile-card form{display:grid;gap:12px}.profile-card label{font-weight:700}.profile-card input[type=file]{width:100%;min-width:0;padding:12px;white-space:normal}.profile-card #avatar-help{font-size:.82rem;margin:0}.profile-actions{display:flex;gap:10px;flex-wrap:wrap}.profile-actions button[hidden]{display:none}#avatar-status{min-height:1.5em;margin:0 0 16px}
 
 .brand:has(h1)::after{display:none}
+
+.ranking-rules{margin:1rem 0;padding:1rem;border:1px solid var(--border,#46556a);border-radius:8px;font-size:.9rem;line-height:1.65}.ranking-rules summary{cursor:pointer;font-weight:700}.ranking-rules li{margin:.5rem 0}.ranking-position{display:block;font-size:.75rem;font-weight:500;white-space:normal}.matrix-leader{display:block;font-size:.7rem;white-space:normal}.round-state{font-size:.85rem;line-height:1.5}
+
+.standings li::before{content:attr(data-rank)}

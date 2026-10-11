@@ -1,4 +1,5 @@
 const express = require('express');
+const { rankStandings } = require('./services/ranking');
 const session = require('express-session');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
@@ -321,7 +322,7 @@ function poolStandings(poolId, matchIds = null) {
     SELECT
       u.id,
       u.name,
-      COALESCE(SUM(p.points),0) points,
+      COALESCE(SUM(CASE WHEN m.status = 'finished' AND m.home_score IS NOT NULL AND m.away_score IS NOT NULL THEN p.points ELSE 0 END),0) points,
       COUNT(p.id) picks,
       SUM(CASE
         WHEN m.status = 'finished' AND m.home_score IS NOT NULL AND m.away_score IS NOT NULL THEN 1
@@ -357,7 +358,7 @@ function poolStandings(poolId, matchIds = null) {
     ORDER BY points DESC, picks DESC, u.name ASC
   `).all(...(matchIds || []), poolId);
 
-  return rows.map((row) => {
+  return rankStandings(rows.map((row) => {
     const finishedPicks = Number(row.finished_picks || 0);
     const correctPicks = Number(row.correct_picks || 0);
     const exactPicks = Number(row.exact_picks || 0);
@@ -369,39 +370,22 @@ function poolStandings(poolId, matchIds = null) {
       accuracy_pct: finishedPicks ? Math.round((correctPicks / finishedPicks) * 100) : null,
       exact_pct: finishedPicks ? Math.round((exactPicks / finishedPicks) * 100) : null,
     };
-  });
+  }));
 }
 
-function rankRows(rows, scoreKey) {
-  return [...rows]
-    .sort((a, b) => Number(b[scoreKey] || 0) - Number(a[scoreKey] || 0) || a.name.localeCompare(b.name))
-    .map((row, index) => ({ ...row, rank: index + 1 }));
-}
 
 function poolMatchdayWins(pool, matches) {
   const winsByUser = new Map();
   const completedRounds = groupPredictionMatches(matches, pool.competition_type || 'liga_mx')
-    .filter((round) => round.matches.length && round.matches.every((match) => match.status === 'finished'));
+    .filter((round) => round.matches.length && round.matches.every((match) => match.status === 'finished' && match.home_score !== null && match.away_score !== null));
 
   for (const round of completedRounds) {
     const matchIds = round.matches.map((match) => Number(match.id)).filter(Number.isInteger);
     if (!matchIds.length) continue;
-    const scores = db.prepare(`
-      SELECT pm.user_id, COALESCE(SUM(pr.points), 0) AS points
-      FROM pool_members pm
-      LEFT JOIN predictions pr
-        ON pr.pool_id = pm.pool_id
-       AND pr.user_id = pm.user_id
-       AND pr.match_id IN (${matchIds.map(() => '?').join(',')})
-      WHERE pm.pool_id = ?
-      GROUP BY pm.user_id
-    `).all(...matchIds, pool.id);
-    if (!scores.length) continue;
-    const topPoints = Math.max(...scores.map((row) => Number(row.points || 0)));
-    scores
-      .filter((row) => Number(row.points || 0) === topPoints)
+    const scores = poolStandings(pool.id, matchIds);
+    scores.filter((row) => row.leader)
       .forEach((row) => {
-        const userId = Number(row.user_id);
+        const userId = Number(row.id);
         winsByUser.set(userId, (winsByUser.get(userId) || 0) + 1);
       });
   }
@@ -419,44 +403,20 @@ function poolMatchdayStandings(pool, matches, nowMs = Date.now()) {
   const matchIds = selectedRound.matches.map((match) => Number(match.id)).filter(Number.isInteger);
   if (!matchIds.length) return null;
 
-  const members = db.prepare(`
-    SELECT u.id, u.name
-    FROM pool_members pm
-    JOIN users u ON u.id = pm.user_id
-    WHERE pm.pool_id = ?
-  `).all(pool.id);
-  const roundPoints = db.prepare(`
-    SELECT user_id, COALESCE(SUM(points), 0) AS points
-    FROM predictions
-    WHERE pool_id = ?
-      AND match_id IN (${matchIds.map(() => '?').join(',')})
-    GROUP BY user_id
-  `).all(pool.id, ...matchIds);
-  const pointsByUser = new Map(roundPoints.map((row) => [Number(row.user_id), Number(row.points || 0)]));
+  const roundRows = poolStandings(pool.id, matchIds);
   const overall = poolStandings(pool.id);
-  const overallByUser = new Map(overall.map((row, index) => [Number(row.id), { points: Number(row.points || 0), rank: index + 1 }]));
-
-  const baseRows = members.map((member) => {
-    const matchdayPoints = pointsByUser.get(Number(member.id)) || 0;
-    const overallRow = overallByUser.get(Number(member.id)) || { points: 0, rank: members.length };
-    return {
-      ...member,
-      matchday_points: matchdayPoints,
-      overall_points: overallRow.points,
-      overall_rank: overallRow.rank,
-      previous_points: overallRow.points - matchdayPoints,
-    };
-  });
-  const previousRanks = new Map(rankRows(baseRows, 'previous_points').map((row) => [Number(row.id), row.rank]));
-  const rows = rankRows(baseRows, 'matchday_points').map((row) => ({
-    ...row,
-    rank_change: (previousRanks.get(Number(row.id)) || row.overall_rank) - row.overall_rank,
+  const overallByUser = new Map(overall.map(row => [Number(row.id), row]));
+  const excluded = new Set(matchIds);
+  const previous = poolStandings(pool.id, matches.filter(m => !excluded.has(Number(m.id))).map(m => Number(m.id)));
+  const previousRanks = new Map(previous.map(row => [Number(row.id), row.rank]));
+  const rows = roundRows.map(row => ({...row, matchday_points: row.points,
+    overall_points: overallByUser.get(Number(row.id))?.points || 0,
+    overall_rank: overallByUser.get(Number(row.id))?.rank,
+    rank_change: previousRanks.get(Number(row.id)) && overallByUser.get(Number(row.id))?.rank
+      ? previousRanks.get(Number(row.id)) - overallByUser.get(Number(row.id)).rank : 0,
   }));
-  const finishedMatches = selectedRound.matches.filter((match) => match.status === 'finished').length;
-  const topPoints = Math.max(0, ...rows.map((row) => row.matchday_points));
-  const winnerNames = finishedMatches > 0
-    ? rows.filter((row) => row.matchday_points === topPoints).map((row) => row.name)
-    : [];
+  const finishedMatches = selectedRound.matches.filter((match) => match.status === 'finished' && match.home_score !== null && match.away_score !== null).length;
+  const winnerNames = rows.filter(row => row.leader).map(row => row.name);
 
   return {
     key: selectedRound.key,
@@ -1413,17 +1373,6 @@ app.get('/dashboard', auth, (req, res) => {
     ORDER BY p.created_at DESC
   `).all(req.session.user.id);
 
-  const winnerStmt = db.prepare(`
-    SELECT u.name, COALESCE(SUM(pr.points), 0) AS points, COUNT(pr.id) AS picks
-    FROM pool_members pm
-    JOIN users u ON u.id = pm.user_id
-    LEFT JOIN predictions pr ON pr.pool_id = pm.pool_id AND pr.user_id = pm.user_id
-    WHERE pm.pool_id = ?
-    GROUP BY u.id, u.name
-    ORDER BY points DESC, picks DESC, u.name ASC
-    LIMIT 1
-  `);
-
   const pools = poolsRaw.map((p) => {
     const poolMatches = getPoolMatches(p.id);
     const matchStats = db.prepare(`
@@ -1437,7 +1386,6 @@ app.get('/dashboard', auth, (req, res) => {
     const totalMatches = Number(matchStats?.total || 0);
     const finishedMatches = Number(matchStats?.finished || 0);
     const poolFinished = totalMatches > 0 && finishedMatches === totalMatches;
-    const winner = poolFinished ? winnerStmt.get(p.id) : null;
     const standings = poolStandings(p.id);
     const matchdayWins = poolMatchdayWins(p, poolMatches);
     const myRankIndex = standings.findIndex((row) => Number(row.id) === Number(req.session.user.id));
@@ -1467,8 +1415,8 @@ app.get('/dashboard', auth, (req, res) => {
     return {
       ...p,
       pool_finished: poolFinished,
-      winner_name: winner?.name || null,
-      my_rank: myRankIndex >= 0 ? myRankIndex + 1 : null,
+      winner_name: poolFinished ? standings.filter(row => row.leader).map(row => row.name).join(', ') : null,
+      my_rank: myRankIndex >= 0 ? standings[myRankIndex].rank : null,
       my_points: myRankIndex >= 0 ? Number(standings[myRankIndex].points || 0) : 0,
       my_matchday_wins: matchdayWins.get(Number(req.session.user.id)) || 0,
       incomplete_count: incompleteMatches.length,
@@ -1835,16 +1783,9 @@ app.get('/pools/:id/pronosticos', auth, (req, res) => {
   const predictionByUserMatch = new Map(
     predictions.map((prediction) => [`${prediction.user_id}:${prediction.match_id}`, prediction])
   );
-  const roundPointsByUser = new Map();
-  for (const prediction of predictions) {
-    const userId = Number(prediction.user_id);
-    roundPointsByUser.set(userId, (roundPointsByUser.get(userId) || 0) + Number(prediction.points || 0));
-  }
-
   const rows = standings
     .map((member) => ({
       ...member,
-      points: roundPointsByUser.get(Number(member.id)) || 0,
       predictions: selectedRound.matches.map((match) => {
         const revealPrediction = matchHasStarted(match, nowMs);
         const prediction = predictionByUserMatch.get(`${member.id}:${match.id}`) || null;
@@ -1854,8 +1795,7 @@ app.get('/pools/:id/pronosticos', auth, (req, res) => {
           status: predictionStatus(prediction, match),
         };
       }),
-    }))
-    .sort((a, b) => Number(b.points) - Number(a.points) || a.name.localeCompare(b.name));
+    }));
 
   const roundMatches = selectedRound.matches.map((match) => ({
     ...match,
@@ -1868,6 +1808,7 @@ app.get('/pools/:id/pronosticos', auth, (req, res) => {
     selectedRound,
     matches: roundMatches,
     rows,
+    roundComplete: roundMatches.length > 0 && roundMatches.every(m => m.status === 'finished' && m.home_score !== null && m.away_score !== null),
     competitionLogo,
   });
 });

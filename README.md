@@ -108,3 +108,28 @@ finished matches with known scores and a prediction in the selected round. Missi
 predictions and unplayed matches are not in the denominator; no qualifying picks
 shows “—”. Correct-result counts include exact scores. The overall pool standings
 retain their all-round statistics.
+
+## Classification rules v1 (2026-10-11)
+
+All standings and matchday awards share `services/ranking.js`: points descending,
+then exact-score count, then correct-result count (including exacts). Existing
+5/3/0 match scoring is unchanged; only finished matches with known scores count.
+Selected-round tables use only that round, never previous rounds or overall
+performance as a tiebreaker. Percentages remain descriptive, not competitive
+criteria: fewer submitted picks must not confer a percentage-based advantage.
+Names and IDs provide stable visual order only. Equal sporting keys share the
+same competition rank (1,1,3), and every positive-points co-leader is identified.
+No evaluated predictions means no rank; all-zero rounds award no win. Shared
+closed-round wins count once for each winner, not fractions. Incomplete or
+postponed rounds are provisional. Result corrections can change derived rankings.
+
+The in-app expandable rules cite Superbru's persistent-tie principle and
+Kicktipp's emphasis on published rules/matchday wins. These are our own adapted
+rules, not a claim of identical platform scoring. No random, submission-time,
+registration-age or alphabetical sporting tiebreak. The same criteria now apply
+to overall tables and exported share cards, using the full pool scope there.
+
+Verification: `npm test` includes deterministic ranking regressions;
+`node scripts/ranking-browser.js` uses a disposable database to exercise shared
+winners/positions and provisional labels at phone/desktop widths. No live data
+is modified by these scripts.
