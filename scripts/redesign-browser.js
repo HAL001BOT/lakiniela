@@ -9,6 +9,13 @@ const browser=await chromium.launch({headless:true,...(fs.existsSync('/usr/bin/c
 try{const page=await browser.newPage({viewport:{width:1440,height:1100}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
 const base=`http://127.0.0.1:${server.address().port}`;
 await page.goto(base+'/register');await page.locator('[name=name]').fill('Carlos');await page.locator('[name=username]').fill('reviewer');await page.locator('[name=email]').fill('review@example.com');await page.locator('[name=password]').fill('test-password-1234');await page.locator('button[type=submit],form button').first().click();await page.waitForURL('**/dashboard');
+assert.equal(await page.locator('link[rel=manifest]').getAttribute('href'),'/manifest.webmanifest');
+await page.evaluate(()=>navigator.serviceWorker.ready);
+assert.ok(await page.evaluate(async()=>Boolean(await navigator.serviceWorker.getRegistration('/'))));
+await page.evaluate(()=>new Promise((resolve)=>{if(navigator.serviceWorker.controller)resolve();else navigator.serviceWorker.addEventListener('controllerchange',resolve,{once:true})}));
+await page.context().setOffline(true);await page.goto(base+'/dashboard');
+assert.equal(await page.locator('h1').innerText(),'Sin conexión');
+await page.context().setOffline(false);await page.goto(base+'/dashboard');
 const owner=db.prepare('SELECT id FROM users WHERE username=?').get('reviewer').id;
 const pool=Number(db.prepare("INSERT INTO pools(name,code,owner_id,competition_type,current_matchday,current_season_key) VALUES('Los Invencibles','DEMO01',?,'liga_mx',12,'2026:torneo-apertura')").run(owner).lastInsertRowid);
 db.prepare('INSERT INTO pool_members(pool_id,user_id) VALUES(?,?)').run(pool,owner);

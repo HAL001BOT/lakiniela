@@ -57,6 +57,24 @@ async function login(agent, username) {
 }
 
 async function main() {
+  const manifestResponse = await request(app).get('/manifest.webmanifest').expect(200);
+  const manifest = JSON.parse(manifestResponse.text);
+  if (manifest.display !== 'standalone' || manifest.start_url !== '/dashboard'
+    || !manifest.icons.some((icon) => icon.sizes === '192x192')
+    || !manifest.icons.some((icon) => icon.sizes === '512x512')) {
+    throw new Error('Installable app manifest is incomplete');
+  }
+  await request(app).get('/icons/icon-192.png').expect(200);
+  await request(app).get('/icons/icon-512.png').expect(200);
+  await request(app).get('/icons/apple-touch-icon.png').expect(200);
+  const serviceWorker = await request(app).get('/sw.js').expect(200);
+  if (!serviceWorker.text.includes("event.request.mode !== 'navigate'")) {
+    throw new Error('Service worker must avoid caching live/private requests');
+  }
+  const loginPage = await request(app).get('/login').expect(200);
+  if (!loginPage.text.includes('rel="manifest"') || !loginPage.text.includes('apple-touch-icon')) {
+    throw new Error('Install metadata is missing from rendered pages');
+  }
   const health = await request(app).get('/health').expect(200);
   if (!health.body.ok || health.body.version !== 'development') {
     throw new Error('Health endpoint did not report application readiness');

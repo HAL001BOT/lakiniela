@@ -60,6 +60,9 @@ app.use(express.static('public', {
   etag: true,
   maxAge: isProd ? '1d' : 0,
   setHeaders(res, filePath) {
+    if (filePath.endsWith('/sw.js') || filePath.endsWith('/manifest.webmanifest') || filePath.endsWith('/pwa.js')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
     if (filePath.includes('/img/') || filePath.includes('/vendor/')) {
       res.setHeader('Cache-Control', 'public, max-age=604800, immutable');
     }
