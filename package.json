@@ -12,12 +12,14 @@
     "dev": "node server.js",
     "test:ui": "node scripts/redesign-browser.js",
     "test:profile": "node scripts/profile-smoke.js",
-    "test:ranking": "node scripts/ranking-smoke.js"
+    "test:ranking": "node scripts/ranking-smoke.js",
+    "build:shader": "esbuild client/action-shader.jsx --bundle --minify --define:process.env.NODE_ENV=\\\"production\\\" --outfile=public/vendor/action-shader.js --legal-comments=linked"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@paper-design/shaders-react": "0.0.82",
     "axios": "^1.13.6",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^12.6.2",
@@ -27,11 +29,14 @@
     "helmet": "^8.1.0",
     "html2canvas": "^1.4.1",
     "node-cron": "^4.2.1",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
     "sharp": "^0.35.5",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@playwright/test": "^1.64.0",
+    "esbuild": "0.25.12",
     "supertest": "^7.2.2"
   }
 }

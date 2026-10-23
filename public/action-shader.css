@@ -1,0 +1,9 @@
+/* Background only. Existing card geometry, text, icons and actions stay intact. */
+.next-action-card { position: relative; isolation: isolate; }
+.next-action-card > .action-shader {
+  position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit; overflow: hidden; pointer-events: none;
+  opacity: .25;
+}
+[data-theme=dark] .next-action-card > .action-shader { opacity: .42; }
+.action-shader canvas { display: block; }
